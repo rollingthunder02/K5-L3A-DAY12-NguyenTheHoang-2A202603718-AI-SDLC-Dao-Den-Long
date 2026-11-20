@@ -7,7 +7,7 @@
 
 ## Chơi Ba hòn đảo
 
-Gom đom đóm và thắp Đèn Lồng Lớn trước bình minh. Mây đi qua **Đảo Bến**, **Đảo Cau** và **Đảo Chuông**, lần lượt có 5, 6 và 7 đèn. Bóng Mực làm tắt ngọn lửa của Mây, còn Gió Lạc cướp đom đóm. Đèn đã thắp tạo vùng an toàn với Bóng Mực.
+Gom đom đóm để giữ đủ đèn sáng tới bình minh. Mây cần giữ **3/5 đèn ở Đảo Bến**, **4/6 ở Đảo Cau** và **5/7 ở Đảo Chuông**. Đèn hao dầu dù đang sáng. Khi xuống dưới 30 dầu, đèn mất vùng an toàn và có thể bị Bóng Mực hút dầu. Đèn tắt đã từng được thắp chỉ cần 5 đom đóm để thắp lại.
 
 **macOS/Linux.** Cài Godot 4.4 trở lên và để `godot` hoặc `godot4` trên `PATH`. Script cũng nhận bản macOS đã cài ở `/Applications/Godot.app` hoặc đường dẫn đặt trong `GODOT_BIN`. Từ thư mục gốc, chạy hai lệnh sau. [Tải Godot](https://godotengine.org/download/)
 
@@ -24,31 +24,31 @@ bash tools/game.sh play
 | Chuột | Xoay camera |
 | Space | Nhảy |
 | Shift | Lướt theo hướng đang đi, hoặc hướng Mây quay mặt khi đứng yên |
-| E | Nạp đom đóm vào đèn chưa sáng gần nhất |
-| Q | Tiêu 3 đom đóm để tỏa sáng, đẩy lùi Bóng Mực và xua Gió Lạc |
+| E | Nạp đom đóm hoặc châm dầu vào đèn gần nhất còn nhận được ánh sáng |
+| Q | Tiêu 3 đom đóm để tỏa sáng, ngắt Bóng Mực đang hút dầu và xua Gió Lạc |
 | Esc hoặc P | Tạm dừng. Có thể tiếp tục, chơi lại đêm, chỉnh cài đặt hoặc về menu |
 | R hoặc nút **Chơi lại Đêm** | Chơi lại đêm đang thua |
 
-**Điểm.** Mỗi đom đóm đã nạp +10, thắp một đèn +100, mỗi Bóng Mực trúng tỏa sáng +5. Khi thắng một đêm, mỗi giây nguyên còn lại cộng 2 điểm và mỗi ngọn lửa còn lại cộng 50 điểm. Bình Minh hiển thị tổng điểm của ba đêm thắng.
+**Điểm.** Mỗi đom đóm đã nạp hoặc dùng để châm dầu cộng 5 điểm. Thắp lần đầu cộng 100 điểm, thắp lại cộng 40 điểm. Tỏa Sáng cộng 5 điểm mỗi Bóng Mực trúng, hoặc 15 điểm nếu nó đang hút dầu. Khi thắng, mỗi đèn còn sáng cộng 50 điểm và phần nguyên của lượng dầu. Mỗi Ngọn Lửa còn lại cộng 50 điểm. Màn Bình Minh cộng điểm của ba đêm thắng.
 
-**Cài đặt.** Âm lượng và độ nhạy chuột được lưu trong `user://settings.cfg` của Godot. Tại Đảo Cau, có thể đi qua cầu tre hoặc dùng bục nhảy. Tại Đảo Chuông, hai dốc dẫn lên tầng 1 và bục nhảy ở tầng 1 dẫn lên tầng 2.
+**Cài đặt.** Âm lượng, độ nhạy chuột và tùy chọn **Bảng màu dễ phân biệt** được lưu trong `user://settings.cfg` của Godot. Tùy chọn này đổi mắt và viền Bóng Mực sang xanh lam, đồng thời hiển thị cảnh báo trắng kèm biểu tượng ⚠. Đèn đã tắt thấp hơn 20% và có vết rách. Mỗi lần thắp thành công tăng sức chứa thêm 2 đom đóm, tối đa 20 trong mỗi đêm.
 
 ### Chế độ headless và kiểm thử
 
 Chạy từ thư mục gốc. Lệnh `verify` cần thêm Python 3.8 trở lên.
 
 ```bash
-bash tools/game.sh headless --seed 42 --night 2 --scenario tests/scenarios/phase2-cau.json --inputs tests/scenarios/phase2-cau.inputs.json --ticks 144 --snapshot-every 12 --out phase2.jsonl
+bash tools/game.sh headless --seed 42 --night 1 --scenario tests/scenarios/phase3-oil.json --inputs tests/scenarios/phase3-oil.inputs.json --ticks 180 --snapshot-every 30 --out phase3.jsonl
 bash tools/game.sh verify
 ```
 
 Trên Windows PowerShell, thay `bash tools/game.sh headless` bằng `& 'D:\Godot_v4.4.1-stable_win64_console.exe' --headless --path . --script res://src/headless.gd --`. Để chạy bộ kiểm chứng contract, đặt `$env:GODOT_BIN = 'D:\Godot_v4.4.1-stable_win64_console.exe'` rồi chạy `python -m unittest discover -s tests -p 'verify_phase*.py' -v`.
 
-Test Contract v1.1 nhận `--night 1`, `2` hoặc `3` và dùng bước mô phỏng cố định 60 tick/giây. Khi tạm dừng, `tick` vẫn tăng và `sim_tick` đứng yên. Xem [game.contract.json](game.contract.json), [tiêu chí nghiệm thu Phase 2](docs/phase-2.md), [bằng chứng Phase 2](docs/proof/phase-2/README.md) và [bằng chứng đã lưu của Phase 1](docs/proof/phase-1/README.md).
+Test Contract v1.2 nhận `--night 1`, `2` hoặc `3` và dùng bước mô phỏng 60 tick/giây. Khi tạm dừng, `tick` vẫn tăng và `sim_tick` cùng mức dầu đứng yên. [Manifest](game.contract.json) · [ADR và kiểm chứng Phase 3](docs/phase-3.md) · [Changelog](CHANGELOG.md) · [Bằng chứng Phase 3](docs/proof/phase-3/README.md)
 
 ### Sáng tạo của tôi
 
-Bản đồ góc màn hình đánh dấu Mây, đom đóm, đèn và các đối thủ, đồng thời thể hiện hai đảo nối bằng cầu tre và các tầng của Đảo Chuông. Vòng vàng biểu thị vùng an toàn của đèn. Hai phần hiển thị đọc trạng thái của game. [Đảo Cau](docs/proof/phase-2/06-dao-cau.jpg) · [Đảo Chuông](docs/proof/phase-2/07-dao-chuong.jpg) · [Kết quả kiểm thử](docs/proof/phase-2/verify.log)
+Bản đồ góc màn hình đánh dấu Mây, đom đóm, đèn và các đối thủ. Đèn yếu nhấp nháy trên bản đồ. Vòng vàng chỉ hiện khi đèn còn vùng an toàn. [Ảnh đèn đang có dầu](docs/proof/phase-3/11-den-dau.jpg) · [Ảnh Đảo Cau](docs/proof/phase-2/06-dao-cau.jpg) · [Ảnh Đảo Chuông](docs/proof/phase-2/07-dao-chuong.jpg)
 
 ---
 

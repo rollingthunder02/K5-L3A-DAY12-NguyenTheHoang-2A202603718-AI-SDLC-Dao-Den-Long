@@ -35,9 +35,14 @@ func _verify() -> void:
 		return
 	sliders[0].value = 0.42
 	sliders[1].value = 1.35
+	var toggles: Array[Node] = _game._hud.find_children("*", "CheckButton", true, false)
+	if not _expect(toggles.size() == 1 and not toggles[0].button_pressed, "accessible palette starts disabled"):
+		return
+	toggles[0].button_pressed = true
 	var config := ConfigFile.new()
 	if not _expect(config.load(_settings_path) == OK and is_equal_approx(config.get_value("settings", "volume"), 0.42)
-			and is_equal_approx(config.get_value("settings", "sensitivity"), 1.35), "saved volume and mouse sensitivity"):
+			and is_equal_approx(config.get_value("settings", "sensitivity"), 1.35)
+			and config.get_value("settings", "accessible_palette"), "saved volume, sensitivity and accessible palette"):
 		return
 	await _capture("02-cai-dat.jpg")
 	_game.queue_free()
@@ -46,7 +51,8 @@ func _verify() -> void:
 	_game.settings_path = _settings_path
 	_game.seed_value = 42
 	root.add_child(_game)
-	if not _expect(is_equal_approx(_game._settings.volume, 0.42) and is_equal_approx(_game._settings.sensitivity, 1.35),
+	if not _expect(is_equal_approx(_game._settings.volume, 0.42) and is_equal_approx(_game._settings.sensitivity, 1.35)
+			and _game._settings.accessible_palette and _game._art._mat.eye.albedo_color == Color("00b3ff"),
 			"settings restored in new scene"):
 		return
 	_click("Bắt đầu")
@@ -83,12 +89,14 @@ func _verify() -> void:
 	_game._begin_play()
 	await _wait_ticks(2)
 	if not _expect(_game._hud._prompt.visible and _game._hud._prompt.text == "E — Nạp ánh sáng (0/10)"
-			and _game._hud._clock.get_theme_color("font_color") == Color("ff5a5f")
-			and _game._hud._cells.size() == 10, "HUD shows deposit prompt, warning clock and ten inventory cells"):
+			and _game._hud._clock.get_theme_color("font_color") == Color.WHITE and _game._hud._clock_icon.visible
+			and _game._hud._cells[9].visible and not _game._hud._cells[10].visible,
+			"HUD shows deposit prompt, white warning with icon and ten visible inventory cells"):
 		return
 	if not _expect(is_equal_approx(_game._art._environment.ambient_light_energy, 0.15)
 			and _game._art._mat.coat.albedo_color == Color("e8e2d0"), "standard ambient and costume colors"):
 		return
+	await _verify_fuel_visuals()
 	for number in range(1, 4):
 		if not _expect(_game.night.number == number, "loaded actual map for night %d" % number):
 			return
@@ -113,8 +121,12 @@ func _verify() -> void:
 		_game._prepare_night(number, scenario)
 		_game._begin_play()
 		await _tap(KEY_E)
+		if not _expect(_game.night.state == "playing" and _game.night.lit_count() == number + 4
+				and _game._hud._inventory_count.text.ends_with("/ 12"), "lighting the last lamp raises capacity but does not end Night %d" % number):
+			return
+		await _wait_ticks(13)
 		if not _expect(_game.night.state == "won" and _game.night.lit_count() == number + 4,
-				"E lights the last lantern and wins controlled Night %d scenario" % number):
+				"survived until dawn in controlled Night %d scenario" % number):
 			return
 		if not _expect(is_equal_approx(_game._art._environment.ambient_light_energy, 0.70), "fully lit island raises ambient light to 0.70"):
 			return
@@ -123,7 +135,7 @@ func _verify() -> void:
 			if not _expect(_game._hud.mode == "intro", "intro shown before next night"):
 				return
 			_click("Bắt đầu đêm")
-	if not _expect(_game._hud.mode == "dawn" and _game.total_score == 3 * 368, "Bình Minh shows the total of the three wins"):
+	if not _expect(_game._hud.mode == "dawn" and _game.total_score == 3582, "Bình Minh shows the total of the three wins"):
 		return
 	await _capture("08-binh-minh.jpg")
 	_click("Về menu")
@@ -153,7 +165,37 @@ func _last_lamp(number: int) -> Dictionary:
 		lamps.append({"id": "L%d" % (index + 1), "lit": true})
 	var position: Vector3 = positions[0] - Vector3(0, 0, 1.3)
 	return {"lanterns": lamps, "random_motes": false, "random_shades": false, "random_drifters": false,
-		"time_left_s": 10, "player": {"pos": [position.x, position.y, position.z], "carried": 10}}
+		"time_left_s": 0.18, "player": {"pos": [position.x, position.y, position.z], "carried": 10}}
+
+
+func _verify_fuel_visuals() -> void:
+	_game._prepare_night(1, {
+		"time_left_s": 28, "player": {"carried": 9, "successful_lights": 2},
+		"random_motes": false, "random_shades": false,
+		"lanterns": [{"id": "L1", "pos": [0, 0, 5], "lit": true, "fuel": 28},
+			{"id": "L2", "pos": [-3.8, 0, 6]}, {"id": "L3", "pos": [7.8, 0, 9], "lit": true, "fuel": 70}],
+		"shades": [{"id": "S1", "state": "drain", "target_lantern_id": "L1", "pos": [1, 0.65, 6.6]}],
+	})
+	_game._begin_play()
+	await _wait_ticks(3)
+	var weak: Node3D = _game._lantern_nodes["L1"]
+	var dark: Node3D = _game._lantern_nodes["L2"]
+	if not _expect(weak.get_node("FuelGauge").visible and not weak.get_node("SafeRing").visible
+			and is_equal_approx(dark.get_node("Housing").scale.y, 0.8) and dark.get_node("Housing/Tears").visible,
+			"weak lantern displays fuel without a safe ring, dark lantern is 20% shorter with torn paper"):
+		return
+	await _capture("11-den-dau.jpg")
+	while _game.night.sim_tick < 32:
+		await physics_frame
+	if not _expect(not weak.get_node("FuelGauge").visible and weak.get_node("Housing/Light").light_energy < 1.0,
+			"weak lantern and gauge blink on the same one-second cycle"):
+		return
+	await _capture("12-den-nhap-nhay.jpg")
+	_game._prepare_night(1, {"random_motes": false, "random_shades": false,
+		"lanterns": [{"id": "L1", "lit": true, "fuel": 1.0 / 60.0}]})
+	await _wait_ticks(2)
+	_expect(_game.night.lit_count() == 0 and is_equal_approx(_game._art._environment.ambient_light_energy, 0.15),
+		"ambient light falls when a lantern goes out")
 
 
 func _click(caption: String) -> void:

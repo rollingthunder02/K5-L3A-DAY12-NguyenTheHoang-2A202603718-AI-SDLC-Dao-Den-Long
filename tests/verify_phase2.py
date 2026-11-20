@@ -13,7 +13,7 @@ def horizontal(a, b=(0, 0, 0)):
 
 class Ticket02Tests(HeadlessCase):
     def test_nights_maps_and_initial_stock(self):
-        self.assertEqual(CONTRACT["contract_version"], "1.1")
+        self.assertEqual(CONTRACT["contract_version"], "1.2")
         maps = [
             [[0, 0, 25], [23.8, 0, 7.7], [14.7, 0, -20.2], [-14.7, 0, -20.2], [-23.8, 0, 7.7]],
             [[0, 0, 20], [17, 0, -10], [-17, 0, -10], [70, 0, 20], [87, 0, -10], [53, 0, -10]],
@@ -24,7 +24,7 @@ class Ticket02Tests(HeadlessCase):
                 records, _ = self.simulate(night=night, ticks=0)
                 first = records[0]
                 self.assertEqual(first["night"], night)
-                self.assertEqual(first["time_left_s"], 270 + 30 * night)
+                self.assertEqual(first["time_left_s"], 210 + 30 * night)
                 self.assertEqual([lamp["pos"] for lamp in first["lanterns"]], expected)
                 self.assertEqual(len(first["motes"]), 20)
                 self.assertEqual(len({tuple(m["pos"]) for m in first["motes"]}), 20)
@@ -122,7 +122,8 @@ class Ticket02Tests(HeadlessCase):
         base["player"] = {"carried": 10}
         base["lanterns"][0] = {"id": "L1", "pos": [0, 0, 0]}
         records, _ = self.simulate(scenario=base, frames=[{"tick": 0, "interact": True}], ticks=300)
-        self.assertEqual(events(records, "game_over")[0]["data"]["reason"], "all_lit")
+        self.assertEqual(events(records, "game_over")[0]["data"]["reason"], "dawn_survived")
+        self.assertEqual(events(records, "lantern_lit")[0]["tick"], 1)
 
     def test_bridge_and_jump_pad_between_the_islands(self):
         scenario = {**EMPTY, "random_drifters": False, "charms": [], "player": {"pos": [26, 0, 0]}}
@@ -249,14 +250,14 @@ class Ticket02Tests(HeadlessCase):
         records, _ = self.simulate(night=3, scenario={**scenario, "wind_enabled": False}, ticks=2100, interval=60)
         self.assertEqual(snapshots(records)[2100]["player"]["pos"], [0, 0, 0])
 
-    def test_full_21600_tick_night_with_entities_within_budget(self):
+    def test_full_18000_tick_night_with_entities_within_budget(self):
         start = time.perf_counter()
         scenario = {"player": {"invuln_ticks": 22000}, "wind_enabled": False}
         records, _ = self.simulate(night=3, scenario=scenario, ticks=21600, interval=10)
         elapsed = time.perf_counter() - start
-        print(f"\nPhase 2 endurance (21,600 ticks including output): {elapsed:.3f} s", flush=True)
+        print(f"\nFull Night 3 (18,000 ticks including output): {elapsed:.3f} s", flush=True)
         self.assertLessEqual(elapsed, 30)
-        self.assertEqual(records[-1]["ticks"], 21600)
+        self.assertEqual(records[-1]["ticks"], 18000)
         self.assertEqual(events(records, "game_over")[0]["data"]["reason"], "dawn")
 
 

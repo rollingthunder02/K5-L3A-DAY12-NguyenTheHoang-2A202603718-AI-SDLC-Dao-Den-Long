@@ -1,5 +1,7 @@
 # Bằng chứng Phase 2
 
+Các kết quả trong thư mục này được ghi ở Contract v1.1. Lượt kiểm scene hiện hành đã được cập nhật cho luật bình minh của Phase 3. [Bằng chứng Phase 3](../phase-3/README.md)
+
 - `build.log` và `verify.log` là đầu ra của `bash tools/game.sh build` và `bash tools/game.sh verify` trên Git Bash. Bộ kiểm chứng gồm 10 ca hồi quy Phase 1 và 12 ca Ticket‑02. Ca đo headless chạy đủ 21.600 tick, ghi snapshot mỗi 10 tick bằng cấu hình Đêm 3 có thực thể mặc định và bất tử đủ lâu để tới bình minh.
 - `campaign.log` và các ảnh được ghi qua cửa sổ Godot 1280×720. Lượt chạy dùng phím thật qua hệ thống input của scene. Để kiểm luồng và điểm chiến dịch, mỗi đêm có một kịch bản được đặt gần đèn cuối. Phần thua dùng một đêm cận bình minh. Cài đặt được đổi qua hai thanh rồi tải lại trong scene mới. Có ảnh cảnh báo lá bay ở Đảo Chuông.
 - `fps.log` đo từng bản đồ tại 1280×720 và tắt VSync. Mỗi đêm có 2 giây khởi động và 4 giây đo theo đồng hồ thực, với đom đóm, số Bóng Mực tối đa của đêm đó và hai Gió Lạc ở Đêm 2/3. Máy chạy Windows, Godot 4.4.1, OpenGL Compatibility, NVIDIA GeForce RTX 3050 Laptop GPU.

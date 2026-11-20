@@ -10,10 +10,24 @@ const MUTED := Color("a8b9bf")
 const DANGER := Color("ff5a5f")
 
 
+class WarningMark extends Control:
+	func _init() -> void:
+		custom_minimum_size = Vector2(18, 18)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		var center := size * 0.5
+		var triangle := PackedVector2Array([center + Vector2(0, -8), center + Vector2(-8.5, 7), center + Vector2(8.5, 7)])
+		draw_colored_polygon(triangle, Color.WHITE)
+		draw_line(center + Vector2(0, -2.5), center + Vector2(0, 1.0), Color("10192a"), 1.8, true)
+		draw_circle(center + Vector2(0, 4.0), 0.95, Color("10192a"), true, -1.0, true)
+
+
 signal action_requested(action: String)
-signal setting_changed(key: String, value: float)
+signal setting_changed(key: String, value: Variant)
 
 var mode := ""
+var accessible_palette := false
 var _hud: Control
 var _veil: ColorRect
 var _panel_content: CenterContainer
@@ -23,8 +37,12 @@ var _score: Label
 var _clock: Label
 var _lamps: Label
 var _prompt: Label
+var _clock_icon: WarningMark
+var _prompt_icon: WarningMark
+var _toast_icon: WarningMark
 var _toast: Label
 var _charm: Label
+var _inventory_count: Label
 var _dash: Label
 var _pulse: Label
 var _marker: Label
@@ -51,32 +69,52 @@ func _ready() -> void:
 	_panel_content.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 
 
-func update_night(night: Night, yaw: float, toast: String) -> void:
+func update_night(night: Night, yaw: float, toast: String, warn_toast: bool = false) -> void:
 	_chapter.text = "ĐÊM %d  /  %s" % [night.number, Map.NAMES[night.number - 1].to_upper()]
 	_flames.text = "✦ ".repeat(night.flames) + "◇ ".repeat(maxi(0, int(night.tuning.flames) - night.flames))
 	_score.text = "%04d ĐIỂM" % night.score
 	var seconds := ceili(night.time_left())
 	_clock.text = "%02d:%02d" % [seconds / 60, seconds % 60]
 	_clock.modulate.a = 0.51 if seconds <= 30 and night.sim_tick % 60 >= 30 else 1.0
-	_clock.add_theme_color_override("font_color", DANGER if seconds <= 30 else PAPER)
-	_lamps.text = "ĐÈN LỒNG   %d / %d" % [night.lit_count(), night.lanterns.size()]
+	_clock_icon.visible = accessible_palette and seconds <= 30
+	_clock_icon.modulate.a = _clock.modulate.a
+	_clock.add_theme_color_override("font_color", _danger_color() if seconds <= 30 else PAPER)
+	_lamps.text = "ĐÈN SÁNG  %d/%d\nCẦN %d ĐẾN BÌNH MINH" % [night.lit_count(), night.lanterns.size(), night.required_lamps()]
+	var capacity := night.capacity()
+	_inventory_count.text = "ĐOM ĐÓM   %d / %d" % [night.carried, capacity]
 	for index in range(_cells.size()):
+		_cells[index].visible = index < capacity
 		_cells[index].color = GOLD if index < night.carried else Color("3b4856")
 	_dash.text = "⇥  LƯỚT   %.1f s" % night.dash_cooldown() if night.dash_cooldown() > 0.0 else "⇥  LƯỚT   Sẵn sàng"
 	_pulse.text = "✦  TỎA SÁNG   %.1f s" % night.pulse_cooldown() if night.pulse_cooldown() > 0.0 else "✦  TỎA SÁNG   %s" % ("Sẵn sàng" if night.carried >= 3 else "Cần 3 đốm")
 	_charm.text = "BÙA GIÓ   %.1f s" % night.charm_left() if night.charm_left() > 0.0 else ""
 	_toast.text = toast
+	_toast_icon.visible = accessible_palette and warn_toast and not toast.is_empty()
+	_toast.add_theme_color_override("font_color", _danger_color() if warn_toast else PAPER)
 	_minimap.night = night
 	_minimap.yaw = yaw
+	_minimap.accessible_palette = accessible_palette
 	_minimap.queue_redraw()
 	var lantern := night.nearest_lantern()
 	_prompt.visible = night.state == "playing" and not lantern.is_empty() and night.respawn_at == 0
+	_prompt_icon.visible = false
 	if _prompt.visible:
-		_prompt.text = "E — Nạp ánh sáng (%d/10)" % lantern.deposited
+		var weak := night.lamp_is_weak(lantern)
+		_prompt_icon.visible = accessible_palette and weak
+		_prompt.add_theme_color_override("font_color", _danger_color() if weak else GOLD)
+		if lantern.lit:
+			_prompt.text = "E — Châm dầu (%d%%)" % floori(night.lamp_fuel(lantern))
+		else:
+			var action := "Thắp lại" if lantern.ever_lit else "Nạp ánh sáng"
+			_prompt.text = "E — %s (%d/%d)" % [action, lantern.deposited, night.light_cost(lantern)]
+
+
+func _danger_color() -> Color:
+	return Color.WHITE if accessible_palette else DANGER
 
 
 func update_marker(camera: Camera3D, night: Night) -> void:
-	var target := night.nearest_lantern(false)
+	var target := night.nearest_lantern(false, false)
 	_marker.hide()
 	if mode != "play" or target.is_empty():
 		return
@@ -131,6 +169,11 @@ func show_panel(page: String, eyebrow: String, title: String, message: String, a
 	if page == "settings":
 		_add_slider(stack, "Âm lượng", "volume", options.volume, 0.0, 1.0)
 		_add_slider(stack, "Độ nhạy chuột", "sensitivity", options.sensitivity, 0.3, 2.0)
+		var toggle := CheckButton.new()
+		toggle.text = "Bảng màu dễ phân biệt"
+		toggle.button_pressed = options.get("accessible_palette", false)
+		toggle.toggled.connect(func(enabled: bool) -> void: setting_changed.emit("accessible_palette", enabled))
+		stack.add_child(toggle)
 	var first_button: Button
 	for entry: Array in actions:
 		var button := Button.new()
@@ -189,9 +232,10 @@ func _make_hud() -> void:
 	var timer := _stack_card(Vector2(0.5, 0), Rect2(-71, 22, 142, 71))
 	timer.add_child(_centered_label("TỚI BÌNH MINH", 11, MUTED))
 	_clock = _centered_label("", 26, PAPER)
-	timer.add_child(_clock)
+	_clock_icon = WarningMark.new()
+	timer.add_child(_warning_row(_clock, _clock_icon))
 
-	var right := _stack_card(Vector2(1, 0), Rect2(-206, 22, 180, 78))
+	var right := _stack_card(Vector2(1, 0), Rect2(-216, 22, 190, 100))
 	_lamps = _label("", 13, PAPER)
 	right.add_child(_lamps)
 	_score = _label("", 24, GOLD)
@@ -214,30 +258,44 @@ func _make_hud() -> void:
 	abilities.add_child(_charm)
 
 	var inventory := _stack_card(Vector2(0.5, 1), Rect2(-258, -90, 516, 67))
-	inventory.add_child(_centered_label("ĐOM ĐÓM", 11, AQUA))
+	_inventory_count = _centered_label("", 11, AQUA)
+	inventory.add_child(_inventory_count)
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 5)
+	row.add_theme_constant_override("separation", 4)
 	inventory.add_child(row)
-	for index in range(10):
+	for index in range(20):
 		var cell := ColorRect.new()
-		cell.custom_minimum_size = Vector2(27, 9)
+		cell.custom_minimum_size = Vector2(17, 9)
 		cell.mouse_filter = MOUSE_FILTER_IGNORE
 		row.add_child(cell)
 		_cells.append(cell)
 	inventory.add_child(_centered_label("WASD  Đi    Space  Nhảy    Shift  Lướt    E  Nạp    Q  Tỏa sáng    P  Dừng", 13, PAPER))
 
 	_prompt = _centered_label("", 20, GOLD)
+	_prompt_icon = WarningMark.new()
 	_shaded(_prompt)
-	_place(_prompt, Vector2(0.5, 1), Rect2(-175, -139, 350, 35))
+	_place(_warning_row(_prompt, _prompt_icon), Vector2(0.5, 1), Rect2(-175, -139, 350, 35))
 	_toast = _centered_label("", 17, PAPER)
+	_toast_icon = WarningMark.new()
 	_shaded(_toast)
-	_place(_toast, Vector2(0.5, 0), Rect2(-277, 108, 554, 30))
+	_place(_warning_row(_toast, _toast_icon), Vector2(0.5, 0), Rect2(-277, 108, 554, 30))
 	_marker = _centered_label("➤", 29, GOLD)
 	_shaded(_marker)
 	_marker.custom_minimum_size = Vector2(38, 38)
 	_hud.add_child(_marker)
 	_marker.hide()
+
+
+func _warning_row(label: Label, mark: WarningMark) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.mouse_filter = MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 6)
+	mark.hide()
+	row.add_child(mark)
+	row.add_child(label)
+	return row
 
 
 func _stack_card(anchor: Vector2, rect: Rect2) -> VBoxContainer:

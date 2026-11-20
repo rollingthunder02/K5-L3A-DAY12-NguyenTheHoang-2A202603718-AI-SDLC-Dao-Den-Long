@@ -129,7 +129,7 @@ class ContractTests(HeadlessCase):
         self.assertEqual(near(1)["pos"], [round(radius + TUNING["pulse_push_m"] / 15, 3), 0.8, 0])
         self.assertEqual(near(15)["pos"], [radius + TUNING["pulse_push_m"], 0.8, 0])
         self.assertEqual(near(resume - 1)["state"], "stunned")
-        self.assertEqual(near(resume)["state"], "chase")
+        self.assertEqual(near(resume)["state"], "wander")
         cooldown = round(TUNING["pulse_cooldown_s"] * 60)
         frames = [{"tick": 0, "pulse": True}, {"tick": 1, "pulse": False}, {"tick": cooldown, "pulse": True}]
         records, _ = self.simulate(scenario=scenario, frames=frames, ticks=cooldown + 1)
@@ -161,19 +161,20 @@ class ContractTests(HeadlessCase):
 
     def test_winning_order_and_score(self):
         cost = TUNING["lantern_cost"]
-        scenario = {**EMPTY, "time_left_s": 10, "player": {"carried": cost, "flames": 2},
+        scenario = {**EMPTY, "time_left_s": 2 / 60, "player": {"carried": cost, "flames": 2},
                     "lanterns": [{"id": "L1", "pos": [0, 0, 0]}] +
                                 [{"id": f"L{i}", "lit": True} for i in range(2, 6)]}
         records, _ = self.simulate(scenario=scenario, frames=[{"tick": 0, "interact": True}], ticks=80)
         self.assertEqual(records[0]["score"], 0)
         self.assertEqual([item["name"] for item in records if item["type"] == "event"],
                          ["night_start", "deposit", "lantern_lit", "game_over"])
-        self.assertEqual(events(records, "game_over")[0]["data"], {"reason": "all_lit", "result": "won"})
+        self.assertEqual(events(records, "game_over")[0]["data"], {"reason": "dawn_survived", "result": "won"})
         self.assertTrue(all(lamp["lit"] for lamp in snapshots(records)[1]["lanterns"]))
+        self.assertEqual(snapshots(records)[1]["state"], "playing")
         score = TUNING["score"]
-        self.assertEqual(records[-1], {"type": "end", "ticks": 1, "state": "won",
+        self.assertEqual(records[-1], {"type": "end", "ticks": 2, "state": "won",
                                       "score": cost * score["per_mote"] + score["per_lantern"]
-                                      + 9 * score["per_second_left"] + 2 * score["per_flame_left"]})
+                                      + 5 * (score["per_dawn_lantern"] + 99) + 2 * score["per_flame_left"]})
 
     def test_dawn_and_empty_overrides(self):
         records, _ = self.simulate(scenario={"time_left_s": 0.05, "motes": [], "shades": []}, ticks=100)

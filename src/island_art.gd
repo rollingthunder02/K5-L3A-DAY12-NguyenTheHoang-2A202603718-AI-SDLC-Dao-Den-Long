@@ -1,6 +1,7 @@
 extends Node3D
 
 const Map := preload("res://src/island_map.gd")
+const Night := preload("res://src/night.gd")
 const GROUND_SHADER := preload("res://src/ground.gdshader")
 const SKY_SHADER := preload("res://src/sky.gdshader")
 
@@ -65,23 +66,45 @@ func make_player() -> Node3D:
 
 func make_lantern() -> Node3D:
 	var lamp := Node3D.new()
-	_cylinder(lamp, Vector3(0, 0.09, 0), 0.80, 0.94, 0.18, _mat.stone, 10)
-	_cylinder(lamp, Vector3(0, 0.22, 0), 0.55, 0.68, 0.13, _mat.brass, 10)
-	_cylinder(lamp, Vector3(0, 0.81, 0), 0.24, 0.36, 1.10, _mat.wood, 8)
+	var housing := Node3D.new()
+	housing.name = "Housing"
+	lamp.add_child(housing)
+	_cylinder(housing, Vector3(0, 0.09, 0), 0.80, 0.94, 0.18, _mat.stone, 10)
+	_cylinder(housing, Vector3(0, 0.22, 0), 0.55, 0.68, 0.13, _mat.brass, 10)
+	_cylinder(housing, Vector3(0, 0.81, 0), 0.24, 0.36, 1.10, _mat.wood, 8)
 	for y in [0.43, 1.18, 1.40]:
-		_cylinder(lamp, Vector3(0, y, 0), 0.40, 0.40, 0.09, _mat.brass, 8)
-	var paper := _cylinder(lamp, Vector3(0, 1.96, 0), 0.53, 0.53, 1.0, _mat.paper, 8)
+		_cylinder(housing, Vector3(0, y, 0), 0.40, 0.40, 0.09, _mat.brass, 8)
+	var paper := _cylinder(housing, Vector3(0, 1.96, 0), 0.53, 0.53, 1.0, _mat.paper, 8)
 	paper.name = "Paper"
+	var damage := Node3D.new()
+	damage.name = "Tears"
+	housing.add_child(damage)
+	var tear_mesh := _paper_tear()
 	for index in range(8):
 		var a := TAU * (index + 0.5) / 8.0
-		_cylinder(lamp, Vector3(cos(a) * 0.53, 1.98, sin(a) * 0.53), 0.025, 0.038, 1.06, _mat.brass, 5)
+		_cylinder(housing, Vector3(cos(a) * 0.53, 1.98, sin(a) * 0.53), 0.025, 0.038, 1.06, _mat.brass, 5)
+		if index % 2 == 0:
+			var rotation := TAU * index / 8.0
+			var tear := _mesh(damage, tear_mesh, Vector3(sin(rotation) * 0.536, 1.96, cos(rotation) * 0.536), _mat.tear)
+			tear.rotation.y = rotation
 	for y in [1.44, 2.47]:
-		_cylinder(lamp, Vector3(0, y, 0), 0.61, 0.61, 0.12, _mat.brass, 8)
-	_cylinder(lamp, Vector3(0, 2.68, 0), 0.16, 0.80, 0.42, _mat.roof, 8)
-	_ball(lamp, Vector3(0, 2.99, 0), Vector3(0.12, 0.135, 0.12), _mat.brass)
-	var light := _light(lamp, Vector3(0, 1.97, 0), Color("ffab50"), 2.6, 10.0)
+		_cylinder(housing, Vector3(0, y, 0), 0.61, 0.61, 0.12, _mat.brass, 8)
+	_cylinder(housing, Vector3(0, 2.68, 0), 0.16, 0.80, 0.42, _mat.roof, 8)
+	_ball(housing, Vector3(0, 2.99, 0), Vector3(0.12, 0.135, 0.12), _mat.brass)
+	var light := _light(housing, Vector3(0, 1.97, 0), Color("ffab50"), 2.6, 10.0)
 	light.name = "Light"
 	light.visible = false
+	var gauge := Node3D.new()
+	gauge.name = "FuelGauge"
+	gauge.position.y = 3.55
+	lamp.add_child(gauge)
+	var track := QuadMesh.new()
+	track.size = Vector2(1.78, 0.25)
+	_mesh(gauge, track, Vector3.ZERO, _mat.gauge_track)
+	var bar := QuadMesh.new()
+	bar.size = Vector2(1.56, 0.12)
+	var fill := _mesh(gauge, bar, Vector3(0, 0, 0.018), _mat.gauge_fill)
+	fill.name = "Fill"
 	var ring := make_ring(6.0, 0.035, Color("f2c14e"), 0.48)
 	ring.position.y = 0.027
 	ring.name = "SafeRing"
@@ -90,13 +113,39 @@ func make_lantern() -> Node3D:
 	return lamp
 
 
-func update_lantern(lamp: Node3D, lit: bool, fraction: float, safe_radius: float) -> void:
-	var paper: MeshInstance3D = lamp.get_node("Paper")
-	paper.material_override = _mat.gold if lit else (_mat.ember if fraction > 0.0 else _mat.paper)
-	lamp.get_node("Light").visible = lit
+func update_lantern(lamp: Node3D, model: Dictionary, night: Night, camera_pos: Vector3) -> void:
+	var lit: bool = model.lit
+	var weak := night.lamp_is_weak(model)
+	var blink_on := not weak or night.sim_tick % 60 < 30
+	var housing: Node3D = lamp.get_node("Housing")
+	housing.scale.y = 1.0 if lit else 0.8
+	housing.get_node("Tears").visible = not lit
+	var paper: MeshInstance3D = housing.get_node("Paper")
+	paper.material_override = (_mat.gold if blink_on else _mat.gold_dim) if lit else (_mat.ember if model.deposited > 0 else _mat.paper)
+	var light: OmniLight3D = housing.get_node("Light")
+	light.visible = lit
+	light.light_energy = 2.6 if blink_on else 0.65
 	var ring: Node3D = lamp.get_node("SafeRing")
-	ring.scale = Vector3(safe_radius / 6.0, 1.0, safe_radius / 6.0)
-	ring.visible = lit
+	ring.visible = lit and not weak
+	var gauge: Node3D = lamp.get_node("FuelGauge")
+	gauge.visible = lit and blink_on
+	if gauge.visible:
+		var direction := camera_pos - lamp.position
+		gauge.rotation.y = atan2(direction.x, direction.z)
+		var fraction := night.lamp_fuel(model) / float(night.tuning.fuel_max)
+		var fill: MeshInstance3D = gauge.get_node("Fill")
+		fill.scale.x = fraction
+		fill.position.x = (fraction - 1.0) * 0.78
+
+
+func _paper_tear() -> ArrayMesh:
+	var surface := _new_surface()
+	for point: Vector3 in [Vector3(-0.13, 0.32, 0), Vector3(0.06, 0.22, 0), Vector3(-0.026, -0.02, 0),
+			Vector3(-0.13, 0.32, 0), Vector3(-0.026, -0.02, 0), Vector3(-0.125, 0.022, 0),
+			Vector3(-0.125, 0.022, 0), Vector3(0.105, 0.075, 0), Vector3(0.052, -0.35, 0)]:
+		surface.add_vertex(point)
+	surface.generate_normals()
+	return surface.commit()
 
 
 func make_mote() -> Node3D:
@@ -111,6 +160,7 @@ func make_shade() -> Node3D:
 	var body := _ball(shade, Vector3(0, 0.07, 0), Vector3(0.50, 0.58, 0.40), _mat.ink, 10)
 	body.name = "Ink"
 	var rim := make_ring(0.57, 0.025, Color("7a3cff"), 0.65)
+	rim.material_override = _mat.eye
 	rim.position.y = -0.4
 	shade.add_child(rim)
 	for side in [-1, 1]:
@@ -124,6 +174,12 @@ func make_shade() -> Node3D:
 	ring.visible = false
 	shade.add_child(ring)
 	return shade
+
+
+func set_accessible_palette(enabled: bool) -> void:
+	var color := Color("00b3ff") if enabled else Color("7a3cff")
+	_mat.eye.albedo_color = color
+	_mat.eye.emission = color
 
 
 func update_shade(node: Node3D, stunned: bool) -> void:
@@ -351,15 +407,21 @@ func _make_palette() -> void:
 		"paper": _material(Color("5b5f6e"), Color("5b5f6e"), 0.15),
 		"ember": _material(Color("5b5f6e"), Color("5b5f6e"), 0.37),
 		"gold": _material(Color("ffb347"), Color("ffe9b0"), 0.86),
+		"gold_dim": _material(Color("9f763b"), Color("ffaa4f"), 0.28),
+		"tear": _material(Color("141722")), "gauge_track": _material(Color("121820")),
+		"gauge_fill": _material(Color("ffe9b0")),
 		"mote_core": _material(Color("fff6c2"), Color("fff6c2"), 1.10),
 		"mote_glow": _material(Color(Color("ffe58a"), 0.24), Color("ffe58a"), 0.6),
 		"ink": _material(Color("120a1a"), Color("120a1a"), 0.38),
-		"eye": _material(Color("e3bdff"), Color("c280ff"), 0.86),
+		"eye": _material(Color("7a3cff"), Color("7a3cff"), 0.86),
 		"stunned": _material(Color("3a3450"), Color("3a3450"), 0.70),
 		"silk": _material(Color("8fa3b8"), Color("8fa3b8"), 0.18),
 	}
 	_mat.path.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_mat.cliff.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for name in ["tear", "gauge_track", "gauge_fill"]:
+		_mat[name].cull_mode = BaseMaterial3D.CULL_DISABLED
+		_mat[name].shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
 
 func _material(color: Color, glow: Color = Color.BLACK, energy: float = 0.0) -> StandardMaterial3D:

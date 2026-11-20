@@ -75,7 +75,7 @@ static func scenario_error(document: Dictionary, night_number: int) -> String:
 		if not document.player is Dictionary:
 			return "player must be an object"
 		var error := _entity_error(document.player, false,
-			["carried", "flames", "invuln_ticks", "dash_cd_ticks", "pulse_cd_ticks", "charm_ticks"])
+			["carried", "flames", "invuln_ticks", "dash_cd_ticks", "pulse_cd_ticks", "charm_ticks", "successful_lights"])
 		if not error.is_empty():
 			return "player: " + error
 		if document.player.has("vel") and not _vector(document.player.vel, 3):
@@ -111,13 +111,13 @@ static func _list_error(value: Variant, name: String, night_number: int) -> Stri
 		var integer_fields := []
 		match name:
 			"lanterns":
-				var count: int = Map.LANTERNS[night_number - 1].size()
-				var id: String = entity.get("id", "")
-				var index := id.substr(1).to_int()
-				if id != "L%d" % index or index < 1 or index > count:
+				if not _is_lantern_id(entity.get("id"), night_number):
 					return "each lantern needs an id for the selected night"
-				if entity.has("lit") and not entity.lit is bool:
-					return "lit must be a boolean"
+				for flag in ["lit", "ever_lit"]:
+					if entity.has(flag) and not entity[flag] is bool:
+						return flag + " must be a boolean"
+				if entity.has("fuel") and (not _number(entity.fuel) or entity.fuel < 0 or entity.fuel > 100):
+					return "fuel must be a number from 0 to 100"
 				integer_fields = ["deposited"]
 			"charms":
 				if entity.has("available") and not entity.available is bool:
@@ -127,11 +127,20 @@ static func _list_error(value: Variant, name: String, night_number: int) -> Stri
 				var states := Night.SHADE_STATES if name == "shades" else Night.DRIFTER_STATES
 				if entity.has("state") and entity.state not in states:
 					return "unrecognized state"
+				if name == "shades" and entity.has("target_lantern_id") and not _is_lantern_id(entity.target_lantern_id, night_number):
+					return "target_lantern_id must reference a lantern of the selected night"
 				integer_fields = ["state_ticks_left"] if name == "shades" else ["state_ticks_left", "stolen"]
 		var error := _entity_error(entity, name in ["shades", "drifters"], integer_fields)
 		if not error.is_empty():
 			return error
 	return ""
+
+
+static func _is_lantern_id(value: Variant, night_number: int) -> bool:
+	if not value is String:
+		return false
+	var index := String(value).substr(1).to_int()
+	return index > 0 and index <= Map.LANTERNS[night_number - 1].size() and value == "L%d" % index
 
 
 static func _entity_error(entity: Dictionary, requires_position: bool, integer_fields: Array) -> String:

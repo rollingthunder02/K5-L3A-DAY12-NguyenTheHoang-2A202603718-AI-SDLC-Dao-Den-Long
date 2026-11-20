@@ -12,7 +12,7 @@ const KEYS := {
 	"pause": [KEY_ESCAPE, KEY_P], "restart": [KEY_R],
 }
 const STORIES := [
-	"Mây ơi, cứ theo những đốm sáng. Mỗi đèn con thắp sẽ cho đảo thêm một chỗ trú.",
+	"Mây ơi, đèn cũng cạn dầu. Hãy châm thêm đom đóm khi đèn yếu để giữ đảo sáng tới bình minh.",
 	"Cầu tre dẫn sang đảo bên. Nếu đi vòng qua bờ đá, hãy tìm vòng ngọc của bục nhảy. Gió Lạc thích đom đóm lắm đấy.",
 	"Hai con dốc dẫn lên vành chuông. Từ bục nhảy trên vành, con sẽ tới ngọn đèn cao nhất. Nhìn lá bay để đón gió.",
 ]
@@ -21,7 +21,7 @@ var night: Night
 var seed_value := randi()
 var settings_path := "user://settings.cfg"
 var total_score := 0
-var _settings := {"volume": 0.8, "sensitivity": 1.0}
+var _settings := {"volume": 0.8, "sensitivity": 1.0, "accessible_palette": false}
 var _return_page := "menu"
 var _art: IslandArt
 var _hud: NightHUD
@@ -36,10 +36,12 @@ var _entity_nodes := {}
 var _yaw := 0.0
 var _camera_height := 5.15
 var _toast := ""
+var _toast_is_warning := false
 var _toast_until := 0
 var _pulse_at := -100
 var _last_second := -1
 var _mouse_guard_until := 0
+var _ambient_lit := -1
 
 
 func _ready() -> void:
@@ -98,9 +100,11 @@ func _prepare_night(number: int, scenario: Dictionary = {}) -> void:
 	_yaw = 0.0
 	_camera_height = 5.15
 	_toast = ""
+	_toast_is_warning = false
 	_toast_until = 0
 	_pulse_at = -100
 	_last_second = -1
+	_ambient_lit = -1
 	_art.set_night(number)
 	if _actors != null:
 		remove_child(_actors)
@@ -120,9 +124,8 @@ func _prepare_night(number: int, scenario: Dictionary = {}) -> void:
 		lamp.position = lantern.pos
 		_actors.add_child(lamp)
 		_lantern_nodes[lantern.id] = lamp
-	_sync_lanterns()
-	_sync_world()
 	_update_camera(1.0)
+	_sync_world()
 	_hud.update_night(night, _yaw, "")
 
 
@@ -130,14 +133,15 @@ func _show_menu() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_audio.pause_music(true)
 	_hud.show_panel("menu", "BA HÒN ĐẢO", "Đảo Đèn Lồng",
-		"Theo chân Mây qua ba đêm và thắp lại những ngọn đèn bị sương đen che khuất.",
+		"Theo chân Mây qua ba đêm và giữ những ngọn đèn sáng tới bình minh.",
 		[["Bắt đầu", "new"], ["Cài đặt", "settings"]])
 
 
 func _show_intro() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_hud.show_panel("intro", "ĐÊM %d  /  ÔNG ĐĂNG" % night.number, Map.NAMES[night.number - 1],
-		STORIES[night.number - 1], [["Bắt đầu đêm", "begin"], ["Về menu", "menu"]])
+		"%s\n\nGiữ ít nhất %d/%d đèn sáng khi tới bình minh." % [STORIES[night.number - 1], night.required_lamps(), night.lanterns.size()],
+		[["Bắt đầu đêm", "begin"], ["Về menu", "menu"]])
 
 
 func _begin_play() -> void:
@@ -171,7 +175,7 @@ func _show_result(reason: String) -> void:
 				"%d/%d đèn sáng  ·  %d điểm đêm này\nTổng điểm   %d" % [night.lit_count(), night.lanterns.size(), night.score, total_score],
 				[["Đêm kế tiếp", "next"], ["Về menu", "menu"]])
 	else:
-		var detail := "Bình minh đến khi đảo vẫn còn đèn chưa sáng."
+		var detail := "Bình minh có %d đèn sáng. Mây cần ít nhất %d đèn." % [night.lit_count(), night.required_lamps()]
 		if reason == "no_flames":
 			detail = "Mây đã mất ngọn lửa cuối cùng."
 		_hud.show_panel("result", Map.NAMES[night.number - 1].to_upper(), "Đêm khép lại",
@@ -204,7 +208,7 @@ func _physics_process(_delta: float) -> void:
 	if night.state != "paused":
 		_sync_world()
 		_update_timed_effects()
-		_hud.update_night(night, _yaw, _toast if night.sim_tick < _toast_until else "")
+		_hud.update_night(night, _yaw, _toast if night.sim_tick < _toast_until else "", _toast_is_warning)
 
 
 func _process(delta: float) -> void:
@@ -216,16 +220,18 @@ func _process(delta: float) -> void:
 func _on_game_event(event: Dictionary) -> void:
 	_audio.play_effect(event.name)
 	match event.name:
-		"deposit", "lantern_lit":
-			_sync_lanterns()
-			if event.name == "lantern_lit":
-				_show_toast("Đèn %s đã sáng  ·  Vùng an toàn" % event.data.lantern_id)
+		"lantern_lit":
+			_show_toast("Đèn %s đã sáng  ·  Vùng an toàn" % event.data.lantern_id)
+		"refuel":
+			_show_toast("Đã châm dầu cho đèn %s" % event.data.lantern_id)
+		"lantern_out":
+			_show_toast("Đèn %s đã cạn dầu" % event.data.lantern_id, true)
 		"pulse":
 			_pulse_ring.position = night.player_pos + Vector3.UP * 0.065
 			_pulse_at = night.sim_tick
 			_show_toast("Mây tỏa sáng  ·  −3 đom đóm")
 		"player_hit":
-			_show_toast("Mây rơi khỏi đảo" if event.data.by == "fall" else "Mất một ngọn lửa  ·  Rơi %d đom đóm" % event.data.dropped)
+			_show_toast("Mây rơi khỏi đảo" if event.data.by == "fall" else "Mất một ngọn lửa  ·  Rơi %d đom đóm" % event.data.dropped, true)
 		"charm_picked":
 			_show_toast("Bùa Gió  ·  Chạy nhanh và lướt liên tiếp")
 		"drifter_steal":
@@ -247,22 +253,26 @@ func _update_timed_effects() -> void:
 	_last_second = seconds
 	if night.wind_warning and night.sim_tick % 1800 == 1680:
 		_audio.play_effect("wind")
-		_show_toast("Gió mạnh sắp tới  ·  Quan sát hướng lá bay")
+		_show_toast("Gió mạnh sắp tới  ·  Quan sát hướng lá bay", true)
 
 
-func _show_toast(message: String) -> void:
+func _show_toast(message: String, warning: bool = false) -> void:
 	_toast = message
+	_toast_is_warning = warning
 	_toast_until = night.sim_tick + 108
 
 
 func _sync_lanterns() -> void:
 	for lamp in night.lanterns:
-		var fraction := float(lamp.deposited) / float(night.tuning.lantern_cost)
-		_art.update_lantern(_lantern_nodes[lamp.id], lamp.lit, fraction, float(night.tuning.safe_radius))
-	_art.set_restored_light(float(night.lit_count()) / night.lanterns.size())
+		_art.update_lantern(_lantern_nodes[lamp.id], lamp, night, _camera.position)
+	var lit := night.lit_count()
+	if lit != _ambient_lit:
+		_ambient_lit = lit
+		_art.set_restored_light(float(lit) / night.lanterns.size())
 
 
 func _sync_world() -> void:
+	_sync_lanterns()
 	var seconds := float(night.sim_tick) / Night.TICKS_PER_SECOND
 	_player.position = night.player_pos
 	_player.rotation.y = lerp_angle(_player.rotation.y, atan2(night.facing.x, night.facing.z), 0.32)
@@ -350,14 +360,22 @@ func _load_settings() -> void:
 	if config.load(settings_path) == OK:
 		_settings.volume = clampf(float(config.get_value("settings", "volume", _settings.volume)), 0.0, 1.0)
 		_settings.sensitivity = clampf(float(config.get_value("settings", "sensitivity", _settings.sensitivity)), 0.3, 2.0)
+		_settings.accessible_palette = bool(config.get_value("settings", "accessible_palette", _settings.accessible_palette))
 	_audio.set_volume(_settings.volume)
+	_apply_palette()
 
 
-func _update_setting(key: String, value: float) -> void:
+func _update_setting(key: String, value: Variant) -> void:
 	_settings[key] = value
 	_audio.set_volume(_settings.volume)
+	_apply_palette()
 	var config := ConfigFile.new()
 	for name: String in _settings:
 		config.set_value("settings", name, _settings[name])
 	if config.save(settings_path) != OK:
 		push_warning("Không lưu được cài đặt.")
+
+
+func _apply_palette() -> void:
+	_hud.accessible_palette = _settings.accessible_palette
+	_art.set_accessible_palette(_settings.accessible_palette)

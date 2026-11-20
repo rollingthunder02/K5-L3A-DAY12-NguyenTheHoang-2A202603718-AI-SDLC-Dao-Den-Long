@@ -1,0 +1,73 @@
+test_dawn_and_empty_overrides (verify_phase1.ContractTests.test_dawn_and_empty_overrides) ... ok
+test_deterministic_jsonl_and_generated_ids (verify_phase1.ContractTests.test_deterministic_jsonl_and_generated_ids) ... ok
+test_hit_drop_invulnerability_and_early_loss (verify_phase1.ContractTests.test_hit_drop_invulnerability_and_early_loss) ... ok
+test_invalid_inputs_and_scenario_return_two (verify_phase1.ContractTests.test_invalid_inputs_and_scenario_return_two) ... ok
+test_movement_rotation_normalization_and_jump_edge (verify_phase1.ContractTests.test_movement_rotation_normalization_and_jump_edge) ... ok
+test_pickup_cap_horizontal_radius_and_partial_deposit (verify_phase1.ContractTests.test_pickup_cap_horizontal_radius_and_partial_deposit) ... ok
+test_pulse_range_push_duration_cost_and_cooldown (verify_phase1.ContractTests.test_pulse_range_push_duration_cost_and_cooldown) ... ok
+test_safe_zone_blocks_shades_at_exact_boundary (verify_phase1.ContractTests.test_safe_zone_blocks_shades_at_exact_boundary) ... ok
+test_tick_zero_default_cadence_and_idle (verify_phase1.ContractTests.test_tick_zero_default_cadence_and_idle) ... ok
+test_winning_order_and_score (verify_phase1.ContractTests.test_winning_order_and_score) ... ok
+test_bridge_and_jump_pad_between_the_islands (verify_phase2.Ticket02Tests.test_bridge_and_jump_pad_between_the_islands) ... ok
+test_charm_duration_dash_override_and_respawn (verify_phase2.Ticket02Tests.test_charm_duration_dash_override_and_respawn) ... ok
+test_dash_duration_direction_cooldown_and_air_height (verify_phase2.Ticket02Tests.test_dash_duration_direction_cooldown_and_air_height) ... ok
+test_drifters_steal_first_pulse_recovers_and_ttl_expires (verify_phase2.Ticket02Tests.test_drifters_steal_first_pulse_recovers_and_ttl_expires) ... ok
+test_fall_bypasses_invulnerability_and_waits_to_respawn (verify_phase2.Ticket02Tests.test_fall_bypasses_invulnerability_and_waits_to_respawn) ... ok
+
+Full Night 3 (18,000 ticks including output): 6.730 s
+test_full_18000_tick_night_with_entities_within_budget (verify_phase2.Ticket02Tests.test_full_18000_tick_night_with_entities_within_budget) ... ok
+test_nights_maps_and_initial_stock (verify_phase2.Ticket02Tests.test_nights_maps_and_initial_stock) ... ok
+test_pause_freezes_time_cooldowns_spawn_ttl_and_movement (verify_phase2.Ticket02Tests.test_pause_freezes_time_cooldowns_spawn_ttl_and_movement) ... ok
+test_safe_zone_eviction_does_not_damage_and_knockback_stops_at_edge (verify_phase2.Ticket02Tests.test_safe_zone_eviction_does_not_damage_and_knockback_stops_at_edge) ... ok
+test_spawn_timing_caps_and_seeded_ids (verify_phase2.Ticket02Tests.test_spawn_timing_caps_and_seeded_ids) ... ok
+test_terrace_ramp_wall_tower_and_high_pad (verify_phase2.Ticket02Tests.test_terrace_ramp_wall_tower_and_high_pad) ... ok
+test_wind_runs_exactly_300_ticks_and_can_be_disabled (verify_phase2.Ticket02Tests.test_wind_runs_exactly_300_ticks_and_can_be_disabled) ... ok
+test_dawn_threshold_and_scores_use_raw_fuel_on_last_tick (verify_phase3.Ticket03Tests.test_dawn_threshold_and_scores_use_raw_fuel_on_last_tick) ... ok
+test_drain_ends_on_player_approach_refuel_and_pulse_scores_total_15 (verify_phase3.Ticket03Tests.test_drain_ends_on_player_approach_refuel_and_pulse_scores_total_15) ... ok
+test_invalid_new_scenario_fields_return_two (verify_phase3.Ticket03Tests.test_invalid_new_scenario_fields_return_two) ... ok
+test_natural_decay_exact_outage_and_no_phase_change_during_pause (verify_phase3.Ticket03Tests.test_natural_decay_exact_outage_and_no_phase_change_during_pause) ... ok
+test_refuel_uses_ceil_after_decay_and_resolves_equal_distance_by_id (verify_phase3.Ticket03Tests.test_refuel_uses_ceil_after_decay_and_resolves_equal_distance_by_id) ... ok
+test_relight_after_outage_counts_once_and_cap_applies_to_pickup (verify_phase3.Ticket03Tests.test_relight_after_outage_counts_once_and_cap_applies_to_pickup) ... ok
+test_safe_radius_uses_unrounded_fuel_at_exact_30 (verify_phase3.Ticket03Tests.test_safe_radius_uses_unrounded_fuel_at_exact_30) ... ok
+test_wander_targets_weak_lamps_and_drains_stack_each_second (verify_phase3.Ticket03Tests.test_wander_targets_weak_lamps_and_drains_stack_each_second) ... ok
+
+----------------------------------------------------------------------
+Ran 30 tests in 47.742s
+
+OK
+Godot Engine v4.4.1.stable.official.49a5bc7b6 - https://godotengine.org
+
+PASS looping soundtrack and required sound cues are defined
+PASS settings opens with two sliders
+PASS accessible palette starts disabled
+PASS saved volume, sensitivity and accessible palette
+PASS settings restored in new scene
+PASS Night 1 intro opened from menu
+PASS Space jumps through game input
+PASS Shift dashes through game input
+PASS P pauses and freezes the simulation
+PASS resume button continues play
+PASS Esc and pause restart reset current night
+PASS HUD shows deposit prompt, white warning with icon and ten visible inventory cells
+PASS standard ambient and costume colors
+PASS weak lantern displays fuel without a safe ring, dark lantern is 20% shorter with torn paper
+PASS weak lantern and gauge blink on the same one-second cycle
+PASS ambient light falls when a lantern goes out
+PASS loaded actual map for night 1
+PASS lighting the last lamp raises capacity but does not end Night 1
+PASS survived until dawn in controlled Night 1 scenario
+PASS fully lit island raises ambient light to 0.70
+PASS intro shown before next night
+PASS loaded actual map for night 2
+PASS lighting the last lamp raises capacity but does not end Night 2
+PASS survived until dawn in controlled Night 2 scenario
+PASS fully lit island raises ambient light to 0.70
+PASS intro shown before next night
+PASS loaded actual map for night 3
+PASS wind warning adds leaves before the gust
+PASS lighting the last lamp raises capacity but does not end Night 3
+PASS survived until dawn in controlled Night 3 scenario
+PASS fully lit island raises ambient light to 0.70
+PASS Bình Minh shows the total of the three wins
+PASS loss is visible and does not add to campaign score
+PASS R restarts the lost night with full flames

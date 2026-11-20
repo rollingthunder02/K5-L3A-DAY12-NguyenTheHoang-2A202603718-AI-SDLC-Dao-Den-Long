@@ -5,6 +5,7 @@ const Map := preload("res://src/island_map.gd")
 
 var night: Night
 var yaw := 0.0
+var accessible_palette := false
 
 
 func _draw() -> void:
@@ -29,11 +30,11 @@ func _draw() -> void:
 		var point := _map_point(lantern.pos, center, scale_factor)
 		var diamond := PackedVector2Array([point + Vector2(0, -5), point + Vector2(5, 0),
 			point + Vector2(0, 5), point + Vector2(-5, 0), point + Vector2(0, -5)])
-		if lantern.lit:
+		if lantern.lit and (not night.lamp_is_weak(lantern) or night.sim_tick % 60 < 30):
 			draw_colored_polygon(diamond.slice(0, 4), Color("f6c172"))
 		draw_polyline(diamond, Color("f6c172") if lantern.lit else Color("bc9c7f"), 1.5, true)
 	for shade in night.shades:
-		draw_circle(_map_point(shade.pos, center, scale_factor), 2.8, Color("be88ec"), true, -1, true)
+		draw_circle(_map_point(shade.pos, center, scale_factor), 2.8, Color("00b3ff" if accessible_palette else "7a3cff"), true, -1, true)
 	for drifter in night.drifters:
 		draw_circle(_map_point(drifter.pos, center, scale_factor), 2.9, Color("8fa3b8"), true, -1, true)
 	for charm in night.charms:
