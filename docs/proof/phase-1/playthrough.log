@@ -1,0 +1,14 @@
+Godot Engine v4.4.1.stable.official.49a5bc7b6 - https://godotengine.org
+OpenGL API 3.3.0 NVIDIA 566.07 - Compatibility - Using Device: NVIDIA - NVIDIA GeForce RTX 3050 Laptop GPU
+
+PASS jump via scene input
+PASS L1 lit through movement, pickup and interact at tick 89
+PASS L2 lit through movement, pickup and interact at tick 292
+PASS L3 lit through movement, pickup and interact at tick 490
+PASS L4 lit through movement, pickup and interact at tick 672
+PASS L5 lit through movement, pickup and interact at tick 862
+PASS win shown (score 1415)
+PASS restart button resets the scene
+PASS Q spends light, stuns shade and displays the pulse ring
+PASS loss shown after shade hits (tick 1132)
+PASS restart via keyboard action

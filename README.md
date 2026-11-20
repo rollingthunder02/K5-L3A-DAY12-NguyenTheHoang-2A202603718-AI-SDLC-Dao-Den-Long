@@ -5,6 +5,50 @@
 
 ---
 
+## Chơi Đêm 1 — Đảo Bến
+
+Gom đom đóm và thắp đủ năm Đèn Lồng Lớn trước bình minh. Mây có ba ngọn lửa. Khi Bóng Mực chạm vào Mây, một ngọn lửa tắt. Đèn đã thắp tạo vùng an toàn.
+
+**macOS/Linux.** Cài Godot 4.4 trở lên và để `godot` hoặc `godot4` trên `PATH`. Script cũng nhận bản macOS đã cài ở `/Applications/Godot.app` hoặc đường dẫn đặt trong `GODOT_BIN`. Từ thư mục gốc, chạy hai lệnh sau. [Tải Godot](https://godotengine.org/download/)
+
+```bash
+bash tools/game.sh build
+bash tools/game.sh play
+```
+
+**Windows.** Mở `project.godot` trong Godot Project Manager rồi nhấn **F5**. Từ PowerShell trên máy làm bài, có thể chạy `& 'D:\Godot_v4.4.1-stable_win64_console.exe' --path .`.
+
+| Phím | Hành động |
+|---|---|
+| WASD hoặc phím mũi tên | Di chuyển theo góc nhìn camera |
+| Chuột | Xoay camera |
+| Space | Nhảy |
+| E | Nạp đom đóm vào đèn chưa sáng gần nhất |
+| Q | Tiêu 2 đom đóm để tỏa sáng, đẩy lùi và làm choáng Bóng Mực trong vùng ảnh hưởng |
+| Esc | Tạm dừng và thả chuột. Nhấp vào game hoặc nhấn Esc để tiếp tục |
+| R hoặc nút **Chơi lại** | Bắt đầu lại cùng bản đồ sau khi thắng hoặc thua |
+
+**Điểm.** Nhặt đom đóm +10, thắp một đèn +120 và làm choáng một Bóng Mực +25. Khi thắng, cộng thêm 2 điểm mỗi giây nguyên còn lại và 75 điểm mỗi ngọn lửa còn lại.
+
+### Chế độ headless và kiểm thử
+
+Chạy từ thư mục gốc. Lệnh `verify` cần thêm Python 3.8 trở lên.
+
+```bash
+bash tools/game.sh headless --seed 42 --night 1 --scenario tests/scenarios/thap-den.json --inputs tests/scenarios/thap-den.inputs.json --ticks 20 --snapshot-every 1 --out phase1.jsonl
+bash tools/game.sh verify
+```
+
+Trên Windows PowerShell, thay `bash tools/game.sh headless` bằng `& 'D:\Godot_v4.4.1-stable_win64_console.exe' --headless --path . --script res://src/headless.gd --`. Để chạy bộ kiểm chứng contract trên máy này, đặt `$env:GODOT_BIN = 'D:\Godot_v4.4.1-stable_win64_console.exe'` rồi chạy `python tests/verify_phase1.py`.
+
+Test Contract dùng bước cố định 60 tick/giây. Các tương tác dùng khoảng cách mặt phẳng XZ. Game chặn ở mép đảo (`fall_enabled: false`). `dash` được đọc dưới dạng boolean nếu đầu vào gửi trường này. Phase 1 chưa có kỹ năng lao nhanh. Xem hệ số trong [game.contract.json](game.contract.json), [giả định và cách kiểm chứng](docs/phase-1.md) và [bằng chứng chạy thật](docs/proof/phase-1/).
+
+### Sáng tạo của tôi
+
+Bản đồ góc màn hình đánh dấu Mây, đom đóm, đèn và Bóng Mực để người chơi tự chọn đường đi trong sương. Vòng sáng trên mặt đất cho biết ranh giới an toàn quanh mỗi đèn đã thắp. Hai phần hiển thị đọc trạng thái của game. [Ảnh đèn đã sáng](docs/proof/phase-1/02-den-da-sang.jpg) · [Kết quả kiểm thử headless](docs/proof/phase-1/contract-tests.log)
+
+---
+
 ## Tài liệu của lab
 
 | File | Nội dung |

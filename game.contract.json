@@ -1,0 +1,35 @@
+{
+  "contract_version": "1.0",
+  "team": "2A202603718-NguyenTheHoang",
+  "build_cmd": "bash tools/game.sh build",
+  "run_cmd": "bash tools/game.sh play",
+  "headless_cmd": "bash tools/game.sh headless",
+  "tuning": {
+    "player_speed": 7.2,
+    "carry_capacity": 10,
+    "lantern_cost": 5,
+    "lantern_count_night1": 5,
+    "pickup_radius": 0.9,
+    "interact_radius": 2.5,
+    "pulse_cost": 2,
+    "pulse_radius": 5.5,
+    "night1_duration_s": 180,
+    "flames": 3,
+    "invuln_s": 1.25,
+    "hit_drop_ratio": 0.25,
+    "pulse_stun_s": 2.25,
+    "pulse_push_m": 3.0,
+    "pulse_cooldown_s": 0.75,
+    "safe_radius": 3.4,
+    "shade_speed": 3.2,
+    "shade_hit_radius": 0.85,
+    "fall_enabled": false,
+    "score": {
+      "per_mote": 10,
+      "per_lantern": 120,
+      "per_stun": 25,
+      "per_second_left": 2,
+      "per_flame_left": 75
+    }
+  }
+}

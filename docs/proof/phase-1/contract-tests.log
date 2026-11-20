@@ -1,0 +1,15 @@
+test_dawn_and_empty_overrides (__main__.ContractTests.test_dawn_and_empty_overrides) ... ok
+test_deterministic_jsonl_and_generated_ids (__main__.ContractTests.test_deterministic_jsonl_and_generated_ids) ... ok
+test_hit_drop_invulnerability_and_early_loss (__main__.ContractTests.test_hit_drop_invulnerability_and_early_loss) ... ok
+test_invalid_inputs_and_scenario_return_two (__main__.ContractTests.test_invalid_inputs_and_scenario_return_two) ... ok
+test_movement_rotation_normalization_and_jump_edge (__main__.ContractTests.test_movement_rotation_normalization_and_jump_edge) ... ok
+test_pickup_cap_horizontal_radius_and_partial_deposit (__main__.ContractTests.test_pickup_cap_horizontal_radius_and_partial_deposit) ... ok
+test_pulse_range_push_duration_cost_and_cooldown (__main__.ContractTests.test_pulse_range_push_duration_cost_and_cooldown) ... ok
+test_safe_zone_blocks_shades_at_exact_boundary (__main__.ContractTests.test_safe_zone_blocks_shades_at_exact_boundary) ... ok
+test_tick_zero_default_cadence_and_idle (__main__.ContractTests.test_tick_zero_default_cadence_and_idle) ... ok
+test_winning_order_and_score (__main__.ContractTests.test_winning_order_and_score) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 9.077s
+
+OK
