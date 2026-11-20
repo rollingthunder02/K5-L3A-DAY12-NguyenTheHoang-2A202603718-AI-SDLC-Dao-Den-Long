@@ -1,5 +1,7 @@
 # Bằng chứng Phase 1
 
+Các log và ảnh dưới đây ghi bản dùng Contract v1.0. Script lượt chơi cũ được lưu tại `playthrough.gd.txt`. Với dự án Phase 2, dùng `bash tools/game.sh verify` để kiểm các luật còn hiệu lực.
+
 - `contract-tests.log` ghi kết quả mười ca kiểm thử tự động của `tests/verify_phase1.py`.
 - `verify.log` ghi kết quả `bash tools/game.sh verify` chạy qua Git Bash trên Windows.
 - `thap-den.jsonl` được tạo bằng lệnh mẫu trong README gốc. Mây nhặt một đom đóm, nạp và thắp L1 ở tick 1, kết thúc với 373 điểm. Hai lần chạy riêng và một lần chạy qua Git Bash cho cùng SHA‑256 `51ca5b6676c5713e182b3dbc6cdedec8823fec23635b6f7b94c716a4b65f63c8`.

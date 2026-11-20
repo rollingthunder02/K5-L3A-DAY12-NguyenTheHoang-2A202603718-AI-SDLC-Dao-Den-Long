@@ -1,7 +1,8 @@
 extends RefCounted
 
-const LANTERN_IDS := ["L1", "L2", "L3", "L4", "L5"]
-const ACTIONS := ["jump", "interact", "pulse", "dash"]
+const Night := preload("res://src/night.gd")
+const Map := preload("res://src/island_map.gd")
+const ACTIONS := Night.BUTTONS
 const JSON_TOKEN := r'\G(?:[ \t\r\n]+|"(?:[^"\\\x00-\x1f]|\\(?:["\\/bfnrt]|u[0-9A-Fa-f]{4}))*"|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|true|false|null|[{}\[\],:])'
 
 
@@ -63,8 +64,8 @@ static func input_error(document: Dictionary) -> String:
 	return ""
 
 
-static func scenario_error(document: Dictionary) -> String:
-	for flag in ["random_motes", "random_shades"]:
+static func scenario_error(document: Dictionary, night_number: int) -> String:
+	for flag in ["random_motes", "random_shades", "random_drifters", "wind_enabled"]:
 		if document.has(flag) and not document[flag] is bool:
 			return "%s must be a boolean" % flag
 	if document.has("time_left_s"):
@@ -73,42 +74,61 @@ static func scenario_error(document: Dictionary) -> String:
 	if document.has("player"):
 		if not document.player is Dictionary:
 			return "player must be an object"
-		var error := _entity_error(document.player, false, ["carried", "flames"])
+		var error := _entity_error(document.player, false,
+			["carried", "flames", "invuln_ticks", "dash_cd_ticks", "pulse_cd_ticks", "charm_ticks"])
 		if not error.is_empty():
 			return "player: " + error
+		if document.player.has("vel") and not _vector(document.player.vel, 3):
+			return "player: vel must be a three-component vector"
 	if document.has("motes"):
 		if not document.motes is Array:
 			return "motes must be an array"
 		for point: Variant in document.motes:
-			if not _vector(point, 3):
+			if point is Dictionary:
+				if point.get("kind", "random") not in ["random", "dropped"] or not _entity_error(point, true, ["ttl_ticks"]).is_empty():
+					return "each mote needs a position, a valid kind and an optional ttl_ticks"
+			elif not _vector(point, 3):
 				return "each mote must be an [x, y, z] position"
-	if document.has("shades"):
-		var error := _list_error(document.shades, false)
-		if not error.is_empty():
-			return "shades: " + error
-	if document.has("lanterns"):
-		var error := _list_error(document.lanterns, true)
-		if not error.is_empty():
-			return "lanterns: " + error
+	for name in ["shades", "lanterns", "drifters", "charms"]:
+		if document.has(name):
+			var error := _list_error(document[name], name, night_number)
+			if not error.is_empty():
+				return name + ": " + error
 	return ""
 
 
-static func _list_error(value: Variant, lanterns: bool) -> String:
+static func _list_error(value: Variant, name: String, night_number: int) -> String:
 	if not value is Array:
 		return "must be an array"
 	var ids := {}
 	for entity: Variant in value:
 		if not entity is Dictionary:
 			return "each entry must be an object"
-		if lanterns and entity.get("id") not in LANTERN_IDS:
-			return "each lantern needs an id from L1 to L5"
 		if entity.has("id"):
 			if not entity.id is String or entity.id.is_empty() or ids.has(entity.id):
 				return "ids must be non-empty, unique strings"
 			ids[entity.id] = true
-		if lanterns and entity.has("lit") and not entity.lit is bool:
-			return "lit must be a boolean"
-		var error := _entity_error(entity, not lanterns, ["deposited"] if lanterns else [])
+		var integer_fields := []
+		match name:
+			"lanterns":
+				var count: int = Map.LANTERNS[night_number - 1].size()
+				var id: String = entity.get("id", "")
+				var index := id.substr(1).to_int()
+				if id != "L%d" % index or index < 1 or index > count:
+					return "each lantern needs an id for the selected night"
+				if entity.has("lit") and not entity.lit is bool:
+					return "lit must be a boolean"
+				integer_fields = ["deposited"]
+			"charms":
+				if entity.has("available") and not entity.available is bool:
+					return "available must be a boolean"
+				integer_fields = ["respawn_ticks", "respawn_ticks_left"]
+			"shades", "drifters":
+				var states := Night.SHADE_STATES if name == "shades" else Night.DRIFTER_STATES
+				if entity.has("state") and entity.state not in states:
+					return "unrecognized state"
+				integer_fields = ["state_ticks_left"] if name == "shades" else ["state_ticks_left", "stolen"]
+		var error := _entity_error(entity, name in ["shades", "drifters"], integer_fields)
 		if not error.is_empty():
 			return error
 	return ""

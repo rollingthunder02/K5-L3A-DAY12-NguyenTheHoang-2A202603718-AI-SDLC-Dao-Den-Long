@@ -12,6 +12,15 @@ if [[ -z "$godot_bin" ]]; then
     done
 fi
 
+check_script() {
+    local output status=0
+    output="$("$godot_bin" --headless --path "$project_dir" --check-only --script "$1" 2>&1)" || status=$?
+    printf '%s\n' "$output"
+    if [[ "$status" -ne 0 || "$output" == *"ERROR:"* ]]; then
+        return 1
+    fi
+}
+
 if [[ -z "$godot_bin" ]]; then
     printf 'Godot 4.4+ not found. Add godot or godot4 to PATH, or set GODOT_BIN.\n' >&2
     exit 1
@@ -24,8 +33,8 @@ case "${1:-}" in
             printf 'Godot 4.4+ is required, found %s.\n' "$version" >&2
             exit 1
         fi
-        "$godot_bin" --headless --path "$project_dir" --check-only --script res://src/headless.gd
-        exec "$godot_bin" --headless --path "$project_dir" --check-only --script res://src/main.gd
+        check_script res://src/headless.gd
+        check_script res://src/main.gd
         ;;
     play)
         exec "$godot_bin" --path "$project_dir"
@@ -35,8 +44,9 @@ case "${1:-}" in
         exec "$godot_bin" --headless --path "$project_dir" --script res://src/headless.gd -- "$@"
         ;;
     verify)
-        GODOT_BIN="$godot_bin" DAO_BEN_TEST_BASH="$BASH" "${PYTHON_BIN:-python3}" "$project_dir/tests/verify_phase1.py"
-        exec "$godot_bin" --headless --path "$project_dir" --fixed-fps 60 --script res://tests/playthrough.gd
+        GODOT_BIN="$godot_bin" DAO_BEN_TEST_BASH="$BASH" "${PYTHON_BIN:-python3}" \
+            -m unittest discover -s "$project_dir/tests" -p 'verify_phase*.py' -v
+        exec "$godot_bin" --headless --path "$project_dir" --fixed-fps 60 --script res://tests/campaign_flow.gd
         ;;
     *)
         printf 'Usage: bash tools/game.sh {build|play|headless|verify}\n' >&2

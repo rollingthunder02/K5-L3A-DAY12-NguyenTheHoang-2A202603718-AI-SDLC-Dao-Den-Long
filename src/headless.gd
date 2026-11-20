@@ -12,7 +12,7 @@ func _initialize() -> void:
 func _run(arguments: PackedStringArray) -> int:
 	var options := _parse_options(arguments)
 	if options.is_empty():
-		return _fail("usage: --seed <int> --night 1 --ticks <int> --out <file.jsonl> " +
+		return _fail("usage: --seed <int> --night <1|2|3> --ticks <int> --out <file.jsonl> " +
 			"[--snapshot-every <int>] [--scenario <file.json>] [--inputs <file.json>]")
 	var scenario := {}
 	var frames := []
@@ -23,7 +23,7 @@ func _run(arguments: PackedStringArray) -> int:
 		if loaded.has("error"):
 			return _fail(loaded.error)
 		var document: Dictionary = loaded.data
-		var error := ContractFiles.scenario_error(document) if option == "--scenario" else ContractFiles.input_error(document)
+		var error := ContractFiles.scenario_error(document, int(options["--night"])) if option == "--scenario" else ContractFiles.input_error(document)
 		if not error.is_empty():
 			return _fail("%s: %s" % [options[option], error])
 		if option == "--scenario":
@@ -35,16 +35,18 @@ func _run(arguments: PackedStringArray) -> int:
 		return _fail("cannot write '%s' (%s)" % [options["--out"], error_string(FileAccess.get_open_error())], 1)
 	var ticks := int(options["--ticks"])
 	var interval := int(options.get("--snapshot-every", "10"))
-	var night := Night.new(int(options["--seed"]), scenario)
+	var night := Night.new(int(options["--seed"]), scenario, int(options["--night"]))
 	var inputs := {}
 	var frame_index := 0
 	_write(output, night.snapshot())
-	while night.tick < ticks and night.state == "playing":
+	_write(output, {"type": "event", "tick": 0, "name": "night_start", "data": {"night": night.number}})
+	while night.tick < ticks and not night.finished():
 		if frame_index < frames.size() and int(frames[frame_index].tick) == night.tick:
 			_apply_frame(inputs, frames[frame_index])
 			frame_index += 1
 		for event in night.step(inputs):
-			_write(output, event)
+			if event.name != "jump":
+				_write(output, event)
 		if night.tick % interval == 0:
 			_write(output, night.snapshot())
 	_write(output, {"type": "end", "ticks": night.tick, "state": night.state, "score": night.score})
@@ -67,7 +69,7 @@ func _parse_options(arguments: PackedStringArray) -> Dictionary:
 		if not parsed.has(name) or not String(parsed[name]).is_valid_int():
 			return {}
 	var interval: String = parsed.get("--snapshot-every", "10")
-	if int(parsed["--night"]) != 1 or not parsed.has("--out") or int(parsed["--ticks"]) < 0:
+	if int(parsed["--night"]) not in [1, 2, 3] or not parsed.has("--out") or int(parsed["--ticks"]) < 0:
 		return {}
 	if not interval.is_valid_int() or int(interval) < 1:
 		return {}

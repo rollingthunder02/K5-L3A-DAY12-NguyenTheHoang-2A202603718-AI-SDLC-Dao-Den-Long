@@ -1,6 +1,7 @@
 shader_type spatial;
 
 uniform float lit_fraction = 0.0;
+uniform vec4 grass : source_color = vec4(0.184, 0.365, 0.314, 1.0);
 varying vec3 world_pos;
 
 float hash2(vec2 cell) {
@@ -22,10 +23,8 @@ void vertex() {
 void fragment() {
 	float mottling = noise2(world_pos.xz * 0.34);
 	float speckle = noise2(world_pos.xz * 6.0);
-	float rocky_rim = smoothstep(27.5, 33.5, length(world_pos.xz));
-	vec3 soil = mix(vec3(0.053, 0.125, 0.14), vec3(0.108, 0.219, 0.197), mottling);
-	soil = mix(soil, vec3(0.083, 0.122, 0.169), rocky_rim * 0.65);
-	ALBEDO = soil + speckle * 0.027 + lit_fraction * vec3(0.024, 0.02, 0.003);
-	EMISSION = soil * 0.17;
+	vec3 soil = grass.rgb * (0.92 + mottling * 0.13 + speckle * 0.035);
+	ALBEDO = soil;
+	EMISSION = soil * (0.12 + lit_fraction * 0.12);
 	ROUGHNESS = 0.94;
 }

@@ -1,28 +1,35 @@
 extends Control
 
 const Night := preload("res://src/night.gd")
+const Map := preload("res://src/island_map.gd")
 const Minimap := preload("res://src/minimap.gd")
-const GOLD := Color("f7c77e")
-const PAPER := Color("f8e9d0")
+const GOLD := Color("f2c14e")
+const PAPER := Color("f5f1e6")
 const AQUA := Color("a1dcd0")
 const MUTED := Color("a8b9bf")
-const VIOLET := Color("d5a9f4")
+const DANGER := Color("ff5a5f")
 
-signal restart_requested
 
+signal action_requested(action: String)
+signal setting_changed(key: String, value: float)
+
+var mode := ""
+var _hud: Control
+var _veil: ColorRect
+var _panel_content: CenterContainer
 var _flames: Label
-var _carry: Label
+var _chapter: Label
 var _score: Label
 var _clock: Label
 var _lamps: Label
 var _prompt: Label
-var _prompt_panel: PanelContainer
 var _toast: Label
+var _charm: Label
+var _dash: Label
+var _pulse: Label
+var _marker: Label
 var _minimap: Minimap
-var _result: ColorRect
-var _result_title: Label
-var _result_text: Label
-var _restart: Button
+var _cells: Array[ColorRect] = []
 var _serif := SystemFont.new()
 
 
@@ -30,188 +37,238 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	mouse_filter = MOUSE_FILTER_IGNORE
 	_serif.font_names = PackedStringArray(["Times New Roman", "Liberation Serif", "DejaVu Serif"])
-	_make_title()
-	_make_status()
-	_make_map()
-	_make_help()
-	_make_result()
+	_hud = Control.new()
+	_hud.mouse_filter = MOUSE_FILTER_IGNORE
+	add_child(_hud)
+	_hud.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	_make_hud()
+	_veil = ColorRect.new()
+	_veil.color = Color(0.034, 0.043, 0.093, 0.70)
+	add_child(_veil)
+	_veil.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	_panel_content = CenterContainer.new()
+	_veil.add_child(_panel_content)
+	_panel_content.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 
 
 func update_night(night: Night, yaw: float, toast: String) -> void:
+	_chapter.text = "ĐÊM %d  /  %s" % [night.number, Map.NAMES[night.number - 1].to_upper()]
 	_flames.text = "✦ ".repeat(night.flames) + "◇ ".repeat(maxi(0, int(night.tuning.flames) - night.flames))
-	_carry.text = "%02d / %02d" % [night.carried, int(night.tuning.carry_capacity)]
-	_score.text = "%04d" % night.score
+	_score.text = "%04d ĐIỂM" % night.score
 	var seconds := ceili(night.time_left())
 	_clock.text = "%02d:%02d" % [seconds / 60, seconds % 60]
-	_clock.add_theme_color_override("font_color", VIOLET if seconds <= 30 else PAPER)
+	_clock.modulate.a = 0.51 if seconds <= 30 and night.sim_tick % 60 >= 30 else 1.0
+	_clock.add_theme_color_override("font_color", DANGER if seconds <= 30 else PAPER)
 	_lamps.text = "ĐÈN LỒNG   %d / %d" % [night.lit_count(), night.lanterns.size()]
+	for index in range(_cells.size()):
+		_cells[index].color = GOLD if index < night.carried else Color("3b4856")
+	_dash.text = "⇥  LƯỚT   %.1f s" % night.dash_cooldown() if night.dash_cooldown() > 0.0 else "⇥  LƯỚT   Sẵn sàng"
+	_pulse.text = "✦  TỎA SÁNG   %.1f s" % night.pulse_cooldown() if night.pulse_cooldown() > 0.0 else "✦  TỎA SÁNG   %s" % ("Sẵn sàng" if night.carried >= 3 else "Cần 3 đốm")
+	_charm.text = "BÙA GIÓ   %.1f s" % night.charm_left() if night.charm_left() > 0.0 else ""
 	_toast.text = toast
 	_minimap.night = night
 	_minimap.yaw = yaw
 	_minimap.queue_redraw()
 	var lantern := night.nearest_lantern()
-	_prompt_panel.visible = night.state == "playing" and not lantern.is_empty()
-	if _prompt_panel.visible:
-		var progress := "%d/%d" % [lantern.deposited, int(night.tuning.lantern_cost)]
-		_prompt.text = "E    Nạp đèn %s   ·   %s" % [lantern.id, progress] if night.carried > 0 \
-			else "Đèn %s   ·   %s   ·   Cần đom đóm" % [lantern.id, progress]
+	_prompt.visible = night.state == "playing" and not lantern.is_empty() and night.respawn_at == 0
+	if _prompt.visible:
+		_prompt.text = "E — Nạp ánh sáng (%d/10)" % lantern.deposited
 
 
-func show_result(night: Night, reason: String) -> void:
-	var won := night.state == "won"
-	_result_title.text = "Đảo đã sáng" if won else "Đêm khép lại"
-	var detail: String = {
-		"all_lit": "Mây đã thắp sáng cả năm Đèn Lồng Lớn.",
-		"no_flames": "Bóng Mực đã làm tắt ngọn lửa cuối cùng của Mây.",
-		"dawn": "Bình minh đến khi đảo vẫn còn đèn chưa sáng.",
-	}.get(reason, "")
-	_result_text.text = "%s\n\n%d điểm   ·   %d/%d đèn sáng" % [detail, night.score, night.lit_count(), night.lanterns.size()]
-	_result.visible = true
-	_restart.grab_focus()
+func update_marker(camera: Camera3D, night: Night) -> void:
+	var target := night.nearest_lantern(false)
+	_marker.hide()
+	if mode != "play" or target.is_empty():
+		return
+	var point: Vector3 = target.pos + Vector3.UP * 2.1
+	var projected := camera.unproject_position(point)
+	var rect := Rect2(Vector2(68, 110), size - Vector2(136, 220))
+	var behind := camera.is_position_behind(point)
+	if not behind and get_viewport_rect().has_point(projected):
+		return
+	var center := size * 0.5
+	var heading := projected - center
+	if behind:
+		var side := camera.to_local(point).x
+		heading = Vector2(side, maxf(absf(side) * 0.4, 1.0))
+	_marker.position = Vector2(clampf(center.x + heading.normalized().x * size.x, rect.position.x, rect.end.x),
+		clampf(center.y + heading.normalized().y * size.y, rect.position.y, rect.end.y)) - _marker.size * 0.5
+	_marker.pivot_offset = _marker.size * 0.5
+	_marker.rotation = heading.angle()
+	_marker.show()
 
 
-func hide_result() -> void:
-	_result.visible = false
+func show_play() -> void:
+	mode = "play"
+	_hud.show()
+	_veil.hide()
 
 
-func _make_title() -> void:
+func show_panel(page: String, eyebrow: String, title: String, message: String, actions: Array,
+		options: Dictionary = {}) -> void:
+	mode = page
+	_marker.hide()
+	_hud.visible = page in ["pause", "result"]
+	for child in _panel_content.get_children():
+		_panel_content.remove_child(child)
+		child.queue_free()
+	var card := _card(30)
+	card.custom_minimum_size = Vector2(530, 0)
+	_panel_content.add_child(card)
 	var stack := VBoxContainer.new()
-	stack.add_theme_constant_override("separation", 2)
-	_place(stack, Vector2.ZERO, Rect2(31, 23, 320, 145))
-	var chapter := _label("ĐÊM 1  /  ĐẢO BẾN", 13, AQUA)
-	stack.add_child(chapter)
-	var title := _label("Đảo Đèn Lồng", 35, PAPER)
-	title.add_theme_font_override("font", _serif)
-	stack.add_child(title)
-	var card := _panel()
-	stack.add_child(card)
+	stack.add_theme_constant_override("separation", 13)
+	card.add_child(stack)
+	var kicker := _centered_label(eyebrow, 13, AQUA)
+	stack.add_child(kicker)
+	var heading := _centered_label(title, 53, GOLD)
+	heading.add_theme_font_override("font", _serif)
+	stack.add_child(heading)
+	if not message.is_empty():
+		var body := _centered_label(message, 17, PAPER)
+		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		body.custom_minimum_size.x = 470
+		stack.add_child(body)
+	if page == "settings":
+		_add_slider(stack, "Âm lượng", "volume", options.volume, 0.0, 1.0)
+		_add_slider(stack, "Độ nhạy chuột", "sensitivity", options.sensitivity, 0.3, 2.0)
+	var first_button: Button
+	for entry: Array in actions:
+		var button := Button.new()
+		button.text = entry[0]
+		button.custom_minimum_size = Vector2(241, 38)
+		button.size_flags_horizontal = SIZE_SHRINK_CENTER
+		button.add_theme_color_override("font_color", Color("0e1430") if first_button == null else PAPER)
+		button.add_theme_color_override("font_hover_color", Color("0e1430"))
+		button.add_theme_color_override("font_focus_color", Color("0e1430") if first_button == null else PAPER)
+		button.add_theme_stylebox_override("normal", _box(GOLD if first_button == null else Color("182538"), GOLD, 5, 9))
+		button.add_theme_stylebox_override("hover", _box(PAPER, GOLD, 5, 9))
+		button.pressed.connect(_dispatch.bind(entry[1]))
+		stack.add_child(button)
+		if first_button == null:
+			first_button = button
+	_veil.show()
+	if first_button != null:
+		first_button.grab_focus()
+
+
+func _dispatch(action: String) -> void:
+	action_requested.emit(action)
+
+
+func _add_slider(parent: VBoxContainer, title: String, key: String, value: float, low: float, high: float) -> void:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 27)
-	card.add_child(row)
-	var health := VBoxContainer.new()
-	var load := VBoxContainer.new()
-	row.add_child(health)
-	row.add_child(load)
-	health.add_child(_label("NGỌN LỬA", 11, MUTED))
-	_flames = _label("", 22, GOLD)
-	health.add_child(_flames)
-	load.add_child(_label("ĐOM ĐÓM", 11, MUTED))
-	_carry = _label("", 22, GOLD)
-	load.add_child(_carry)
+	row.add_theme_constant_override("separation", 12)
+	var name_label := _label(title, 15, PAPER)
+	name_label.custom_minimum_size.x = 140
+	row.add_child(name_label)
+	var slider := HSlider.new()
+	slider.min_value = low
+	slider.max_value = high
+	slider.step = 0.01
+	slider.value = value
+	slider.custom_minimum_size = Vector2(165, 24)
+	slider.size_flags_horizontal = SIZE_EXPAND_FILL
+	var readout := _label("%d%%" % roundi(value * 100), 13, GOLD)
+	readout.custom_minimum_size.x = 52
+	slider.value_changed.connect(func(next: float) -> void:
+		readout.text = "%d%%" % roundi(next * 100)
+		setting_changed.emit(key, next))
+	row.add_child(slider)
+	row.add_child(readout)
+	parent.add_child(row)
 
 
-func _make_status() -> void:
-	var card := _panel()
-	_place(card, Vector2(1, 0), Rect2(-238, 28, 207, 104))
-	var stack := VBoxContainer.new()
-	card.add_child(stack)
-	var values := HBoxContainer.new()
-	values.add_theme_constant_override("separation", 23)
-	stack.add_child(values)
-	var countdown := VBoxContainer.new()
-	var score_stack := VBoxContainer.new()
-	values.add_child(countdown)
-	values.add_child(score_stack)
-	countdown.add_child(_label("TỚI BÌNH MINH", 11, MUTED))
-	_clock = _label("", 23, PAPER)
-	countdown.add_child(_clock)
-	score_stack.add_child(_label("ĐIỂM", 11, MUTED))
-	_score = _label("", 23, PAPER)
-	score_stack.add_child(_score)
-	_lamps = _label("", 13, AQUA)
-	stack.add_child(_lamps)
+func _make_hud() -> void:
+	var left := _stack_card(Vector2.ZERO, Rect2(26, 22, 221, 90))
+	_chapter = _label("", 13, AQUA)
+	left.add_child(_chapter)
+	left.add_child(_label("NGỌN LỬA", 11, MUTED))
+	_flames = _label("", 24, GOLD)
+	left.add_child(_flames)
 
+	var timer := _stack_card(Vector2(0.5, 0), Rect2(-71, 22, 142, 71))
+	timer.add_child(_centered_label("TỚI BÌNH MINH", 11, MUTED))
+	_clock = _centered_label("", 26, PAPER)
+	timer.add_child(_clock)
 
-func _make_map() -> void:
-	var card := _panel()
-	_place(card, Vector2.ONE, Rect2(-197, -205, 166, 178))
-	var stack := VBoxContainer.new()
-	stack.add_theme_constant_override("separation", 4)
-	card.add_child(stack)
-	var map_title := _label("BẢN ĐỒ ĐẢO", 11, AQUA)
-	map_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	stack.add_child(map_title)
+	var right := _stack_card(Vector2(1, 0), Rect2(-206, 22, 180, 78))
+	_lamps = _label("", 13, PAPER)
+	right.add_child(_lamps)
+	_score = _label("", 24, GOLD)
+	right.add_child(_score)
+
+	var map_stack := _stack_card(Vector2(0, 1), Rect2(26, -162, 156, 139))
+	map_stack.add_child(_centered_label("BẢN ĐỒ ĐẢO", 11, AQUA))
 	_minimap = Minimap.new()
-	_minimap.custom_minimum_size = Vector2(132, 132)
+	_minimap.custom_minimum_size = Vector2(127, 99)
 	_minimap.size_flags_vertical = SIZE_EXPAND_FILL
 	_minimap.mouse_filter = MOUSE_FILTER_IGNORE
-	stack.add_child(_minimap)
+	map_stack.add_child(_minimap)
+
+	var abilities := _stack_card(Vector2.ONE, Rect2(-220, -110, 194, 87))
+	_dash = _label("", 14, PAPER)
+	_pulse = _label("", 14, PAPER)
+	_charm = _label("", 12, GOLD)
+	abilities.add_child(_dash)
+	abilities.add_child(_pulse)
+	abilities.add_child(_charm)
+
+	var inventory := _stack_card(Vector2(0.5, 1), Rect2(-258, -90, 516, 67))
+	inventory.add_child(_centered_label("ĐOM ĐÓM", 11, AQUA))
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 5)
+	inventory.add_child(row)
+	for index in range(10):
+		var cell := ColorRect.new()
+		cell.custom_minimum_size = Vector2(27, 9)
+		cell.mouse_filter = MOUSE_FILTER_IGNORE
+		row.add_child(cell)
+		_cells.append(cell)
+	inventory.add_child(_centered_label("WASD  Đi    Space  Nhảy    Shift  Lướt    E  Nạp    Q  Tỏa sáng    P  Dừng", 13, PAPER))
+
+	_prompt = _centered_label("", 20, GOLD)
+	_shaded(_prompt)
+	_place(_prompt, Vector2(0.5, 1), Rect2(-175, -139, 350, 35))
+	_toast = _centered_label("", 17, PAPER)
+	_shaded(_toast)
+	_place(_toast, Vector2(0.5, 0), Rect2(-277, 108, 554, 30))
+	_marker = _centered_label("➤", 29, GOLD)
+	_shaded(_marker)
+	_marker.custom_minimum_size = Vector2(38, 38)
+	_hud.add_child(_marker)
+	_marker.hide()
 
 
-func _make_help() -> void:
-	var card := _panel()
-	_place(card, Vector2(0, 1), Rect2(31, -72, 570, 45))
-	var help := _label("WASD  Đi    ·    Chuột  Camera    ·    Space  Nhảy    ·    E  Nạp đèn    ·    Q  Tỏa sáng", 14, PAPER)
-	card.add_child(help)
-	_prompt_panel = _panel()
-	_place(_prompt_panel, Vector2(0.5, 1), Rect2(-163, -136, 326, 47))
-	_prompt = _label("", 17, GOLD)
-	_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_prompt_panel.add_child(_prompt)
-	_toast = _label("", 17, PAPER)
-	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_toast.add_theme_color_override("font_shadow_color", Color("121828"))
-	_toast.add_theme_constant_override("shadow_offset_y", 2)
-	_place(_toast, Vector2(0.5, 0), Rect2(-235, 33, 470, 36))
-
-
-func _make_result() -> void:
-	_result = ColorRect.new()
-	_result.color = Color(0.045, 0.065, 0.11, 0.70)
-	add_child(_result)
-	_result.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
-	var card := _panel(25)
-	_result.add_child(card)
-	card.set_anchors_and_offsets_preset(PRESET_CENTER)
-	card.offset_left = -269
-	card.offset_right = 269
-	card.offset_top = -147
-	card.offset_bottom = 147
+func _stack_card(anchor: Vector2, rect: Rect2) -> VBoxContainer:
+	var panel := _card(13)
+	_place(panel, anchor, rect)
 	var stack := VBoxContainer.new()
-	stack.alignment = BoxContainer.ALIGNMENT_CENTER
-	stack.add_theme_constant_override("separation", 15)
-	card.add_child(stack)
-	_result_title = _label("", 48, GOLD)
-	_result_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_result_title.add_theme_font_override("font", _serif)
-	stack.add_child(_result_title)
-	_result_text = _label("", 17, PAPER)
-	_result_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	stack.add_child(_result_text)
-	_restart = Button.new()
-	_restart.text = "Chơi lại  ·  R"
-	_restart.custom_minimum_size = Vector2(166, 42)
-	_restart.size_flags_horizontal = SIZE_SHRINK_CENTER
-	_restart.add_theme_color_override("font_color", Color("272130"))
-	_restart.add_theme_color_override("font_hover_color", Color("272130"))
-	_restart.add_theme_color_override("font_focus_color", Color("272130"))
-	_restart.add_theme_stylebox_override("normal", _box_style(GOLD, GOLD, 5, 8))
-	_restart.add_theme_stylebox_override("hover", _box_style(PAPER, PAPER, 5, 8))
-	_restart.pressed.connect(func() -> void: restart_requested.emit())
-	stack.add_child(_restart)
-	_result.hide()
+	stack.add_theme_constant_override("separation", 3)
+	panel.add_child(stack)
+	return stack
 
 
 func _place(node: Control, anchor: Vector2, rect: Rect2) -> void:
-	add_child(node)
-	node.anchor_left = anchor.x
-	node.anchor_right = anchor.x
-	node.anchor_top = anchor.y
-	node.anchor_bottom = anchor.y
+	_hud.add_child(node)
+	node.set_anchor(SIDE_LEFT, anchor.x)
+	node.set_anchor(SIDE_RIGHT, anchor.x)
+	node.set_anchor(SIDE_TOP, anchor.y)
+	node.set_anchor(SIDE_BOTTOM, anchor.y)
 	node.offset_left = rect.position.x
 	node.offset_top = rect.position.y
 	node.offset_right = rect.end.x
 	node.offset_bottom = rect.end.y
 
 
-func _panel(padding: int = 13) -> PanelContainer:
+func _card(padding: int) -> PanelContainer:
 	var panel := PanelContainer.new()
 	panel.mouse_filter = MOUSE_FILTER_IGNORE
-	panel.add_theme_stylebox_override("panel", _box_style(Color(0.049, 0.082, 0.13, 0.94), Color("3e5261"), 8, padding))
+	panel.add_theme_stylebox_override("panel", _box(Color("10192ae6"), Color("42546a"), 8, padding))
 	return panel
 
 
-func _box_style(fill: Color, border: Color, radius: int, padding: int) -> StyleBoxFlat:
+func _box(fill: Color, border: Color, radius: int, padding: int) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = fill
 	style.border_color = border
@@ -219,9 +276,15 @@ func _box_style(fill: Color, border: Color, radius: int, padding: int) -> StyleB
 	style.set_corner_radius_all(radius)
 	style.content_margin_left = padding
 	style.content_margin_right = padding
-	style.content_margin_top = padding * 0.72
-	style.content_margin_bottom = padding * 0.72
+	style.content_margin_top = padding * 0.75
+	style.content_margin_bottom = padding * 0.75
 	return style
+
+
+func _centered_label(value: String, font_size: int, font_color: Color) -> Label:
+	var label := _label(value, font_size, font_color)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	return label
 
 
 func _label(value: String, font_size: int, font_color: Color) -> Label:
@@ -230,3 +293,8 @@ func _label(value: String, font_size: int, font_color: Color) -> Label:
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", font_color)
 	return label
+
+
+func _shaded(label: Label) -> void:
+	label.add_theme_color_override("font_shadow_color", Color("090e22"))
+	label.add_theme_constant_override("shadow_offset_y", 2)

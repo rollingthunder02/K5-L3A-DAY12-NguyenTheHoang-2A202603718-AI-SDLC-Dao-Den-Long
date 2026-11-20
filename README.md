@@ -5,9 +5,9 @@
 
 ---
 
-## Chơi Đêm 1 — Đảo Bến
+## Chơi Ba hòn đảo
 
-Gom đom đóm và thắp đủ năm Đèn Lồng Lớn trước bình minh. Mây có ba ngọn lửa. Khi Bóng Mực chạm vào Mây, một ngọn lửa tắt. Đèn đã thắp tạo vùng an toàn.
+Gom đom đóm và thắp Đèn Lồng Lớn trước bình minh. Mây đi qua **Đảo Bến**, **Đảo Cau** và **Đảo Chuông**, lần lượt có 5, 6 và 7 đèn. Bóng Mực làm tắt ngọn lửa của Mây, còn Gió Lạc cướp đom đóm. Đèn đã thắp tạo vùng an toàn với Bóng Mực.
 
 **macOS/Linux.** Cài Godot 4.4 trở lên và để `godot` hoặc `godot4` trên `PATH`. Script cũng nhận bản macOS đã cài ở `/Applications/Godot.app` hoặc đường dẫn đặt trong `GODOT_BIN`. Từ thư mục gốc, chạy hai lệnh sau. [Tải Godot](https://godotengine.org/download/)
 
@@ -23,29 +23,32 @@ bash tools/game.sh play
 | WASD hoặc phím mũi tên | Di chuyển theo góc nhìn camera |
 | Chuột | Xoay camera |
 | Space | Nhảy |
+| Shift | Lướt theo hướng đang đi, hoặc hướng Mây quay mặt khi đứng yên |
 | E | Nạp đom đóm vào đèn chưa sáng gần nhất |
-| Q | Tiêu 2 đom đóm để tỏa sáng, đẩy lùi và làm choáng Bóng Mực trong vùng ảnh hưởng |
-| Esc | Tạm dừng và thả chuột. Nhấp vào game hoặc nhấn Esc để tiếp tục |
-| R hoặc nút **Chơi lại** | Bắt đầu lại cùng bản đồ sau khi thắng hoặc thua |
+| Q | Tiêu 3 đom đóm để tỏa sáng, đẩy lùi Bóng Mực và xua Gió Lạc |
+| Esc hoặc P | Tạm dừng. Có thể tiếp tục, chơi lại đêm, chỉnh cài đặt hoặc về menu |
+| R hoặc nút **Chơi lại Đêm** | Chơi lại đêm đang thua |
 
-**Điểm.** Nhặt đom đóm +10, thắp một đèn +120 và làm choáng một Bóng Mực +25. Khi thắng, cộng thêm 2 điểm mỗi giây nguyên còn lại và 75 điểm mỗi ngọn lửa còn lại.
+**Điểm.** Mỗi đom đóm đã nạp +10, thắp một đèn +100, mỗi Bóng Mực trúng tỏa sáng +5. Khi thắng một đêm, mỗi giây nguyên còn lại cộng 2 điểm và mỗi ngọn lửa còn lại cộng 50 điểm. Bình Minh hiển thị tổng điểm của ba đêm thắng.
+
+**Cài đặt.** Âm lượng và độ nhạy chuột được lưu trong `user://settings.cfg` của Godot. Tại Đảo Cau, có thể đi qua cầu tre hoặc dùng bục nhảy. Tại Đảo Chuông, hai dốc dẫn lên tầng 1 và bục nhảy ở tầng 1 dẫn lên tầng 2.
 
 ### Chế độ headless và kiểm thử
 
 Chạy từ thư mục gốc. Lệnh `verify` cần thêm Python 3.8 trở lên.
 
 ```bash
-bash tools/game.sh headless --seed 42 --night 1 --scenario tests/scenarios/thap-den.json --inputs tests/scenarios/thap-den.inputs.json --ticks 20 --snapshot-every 1 --out phase1.jsonl
+bash tools/game.sh headless --seed 42 --night 2 --scenario tests/scenarios/phase2-cau.json --inputs tests/scenarios/phase2-cau.inputs.json --ticks 144 --snapshot-every 12 --out phase2.jsonl
 bash tools/game.sh verify
 ```
 
-Trên Windows PowerShell, thay `bash tools/game.sh headless` bằng `& 'D:\Godot_v4.4.1-stable_win64_console.exe' --headless --path . --script res://src/headless.gd --`. Để chạy bộ kiểm chứng contract trên máy này, đặt `$env:GODOT_BIN = 'D:\Godot_v4.4.1-stable_win64_console.exe'` rồi chạy `python tests/verify_phase1.py`.
+Trên Windows PowerShell, thay `bash tools/game.sh headless` bằng `& 'D:\Godot_v4.4.1-stable_win64_console.exe' --headless --path . --script res://src/headless.gd --`. Để chạy bộ kiểm chứng contract, đặt `$env:GODOT_BIN = 'D:\Godot_v4.4.1-stable_win64_console.exe'` rồi chạy `python -m unittest discover -s tests -p 'verify_phase*.py' -v`.
 
-Test Contract dùng bước cố định 60 tick/giây. Các tương tác dùng khoảng cách mặt phẳng XZ. Game chặn ở mép đảo (`fall_enabled: false`). `dash` được đọc dưới dạng boolean nếu đầu vào gửi trường này. Phase 1 chưa có kỹ năng lao nhanh. Xem hệ số trong [game.contract.json](game.contract.json), [giả định và cách kiểm chứng](docs/phase-1.md) và [bằng chứng chạy thật](docs/proof/phase-1/).
+Test Contract v1.1 nhận `--night 1`, `2` hoặc `3` và dùng bước mô phỏng cố định 60 tick/giây. Khi tạm dừng, `tick` vẫn tăng và `sim_tick` đứng yên. Xem [game.contract.json](game.contract.json), [tiêu chí nghiệm thu Phase 2](docs/phase-2.md), [bằng chứng Phase 2](docs/proof/phase-2/README.md) và [bằng chứng đã lưu của Phase 1](docs/proof/phase-1/README.md).
 
 ### Sáng tạo của tôi
 
-Bản đồ góc màn hình đánh dấu Mây, đom đóm, đèn và Bóng Mực để người chơi tự chọn đường đi trong sương. Vòng sáng trên mặt đất cho biết ranh giới an toàn quanh mỗi đèn đã thắp. Hai phần hiển thị đọc trạng thái của game. [Ảnh đèn đã sáng](docs/proof/phase-1/02-den-da-sang.jpg) · [Kết quả kiểm thử headless](docs/proof/phase-1/contract-tests.log)
+Bản đồ góc màn hình đánh dấu Mây, đom đóm, đèn và các đối thủ, đồng thời thể hiện hai đảo nối bằng cầu tre và các tầng của Đảo Chuông. Vòng vàng biểu thị vùng an toàn của đèn. Hai phần hiển thị đọc trạng thái của game. [Đảo Cau](docs/proof/phase-2/06-dao-cau.jpg) · [Đảo Chuông](docs/proof/phase-2/07-dao-chuong.jpg) · [Kết quả kiểm thử](docs/proof/phase-2/verify.log)
 
 ---
 

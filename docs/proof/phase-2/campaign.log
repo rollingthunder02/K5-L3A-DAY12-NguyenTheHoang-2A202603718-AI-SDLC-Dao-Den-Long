@@ -1,0 +1,30 @@
+Godot Engine v4.4.1.stable.official.49a5bc7b6 - https://godotengine.org
+OpenGL API 3.3.0 NVIDIA 566.07 - Compatibility - Using Device: NVIDIA - NVIDIA GeForce RTX 3050 Laptop GPU
+
+PASS looping soundtrack and required sound cues are defined
+PASS settings opens with two sliders
+PASS saved volume and mouse sensitivity
+PASS settings restored in new scene
+PASS Night 1 intro opened from menu
+PASS Space jumps through game input
+PASS Shift dashes through game input
+PASS P pauses and freezes the simulation
+PASS resume button continues play
+PASS Esc and pause restart reset current night
+PASS HUD shows deposit prompt, warning clock and ten inventory cells
+PASS standard ambient and costume colors
+PASS loaded actual map for night 1
+PASS E lights the last lantern and wins controlled Night 1 scenario
+PASS fully lit island raises ambient light to 0.70
+PASS intro shown before next night
+PASS loaded actual map for night 2
+PASS E lights the last lantern and wins controlled Night 2 scenario
+PASS fully lit island raises ambient light to 0.70
+PASS intro shown before next night
+PASS loaded actual map for night 3
+PASS wind warning adds leaves before the gust
+PASS E lights the last lantern and wins controlled Night 3 scenario
+PASS fully lit island raises ambient light to 0.70
+PASS Bình Minh shows the total of the three wins
+PASS loss is visible and does not add to campaign score
+PASS R restarts the lost night with full flames
