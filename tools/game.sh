@@ -37,7 +37,11 @@ case "${1:-}" in
         check_script res://src/main.gd
         ;;
     play)
-        exec "$godot_bin" --path "$project_dir"
+        shift
+        if [[ "${1:-}" == "--export-leaderboard" ]]; then
+            exec "$godot_bin" --headless --path "$project_dir" -- "$@"
+        fi
+        exec "$godot_bin" --path "$project_dir" -- "$@"
         ;;
     headless)
         shift
@@ -48,8 +52,13 @@ case "${1:-}" in
             -m unittest discover -s "$project_dir/tests" -p 'verify_phase*.py' -v
         exec "$godot_bin" --headless --path "$project_dir" --fixed-fps 60 --script res://tests/campaign_flow.gd
         ;;
+    bench|soak)
+        mode="$1"
+        shift
+        exec "${PYTHON_BIN:-python3}" "$project_dir/tools/measure.py" "$godot_bin" "$mode" "$@"
+        ;;
     *)
-        printf 'Usage: bash tools/game.sh {build|play|headless|verify}\n' >&2
+        printf 'Usage: bash tools/game.sh {build|play|headless|verify|bench|soak}\n' >&2
         exit 2
         ;;
 esac

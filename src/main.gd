@@ -5,6 +5,11 @@ const Map := preload("res://src/island_map.gd")
 const IslandArt := preload("res://src/island_art.gd")
 const NightHUD := preload("res://src/hud.gd")
 const NightAudio := preload("res://src/night_audio.gd")
+const Leaderboard := preload("res://src/leaderboard.gd")
+const ActorBatch := preload("res://src/actor_batch.gd")
+const ACTION_NAMES := {"walk_left": "Đi trái", "walk_right": "Đi phải", "walk_back": "Đi lùi",
+	"walk_forward": "Đi tới", "jump": "Nhảy", "dash": "Lướt", "interact": "Tương tác",
+	"pulse": "Tỏa sáng", "pause": "Tạm dừng"}
 const KEYS := {
 	"walk_left": [KEY_A, KEY_LEFT], "walk_right": [KEY_D, KEY_RIGHT],
 	"walk_forward": [KEY_W, KEY_UP], "walk_back": [KEY_S, KEY_DOWN],
@@ -20,8 +25,14 @@ const STORIES := [
 var night: Night
 var seed_value := randi()
 var settings_path := "user://settings.cfg"
+var leaderboard_path := "user://leaderboard.json"
+var _board: Leaderboard
+var _score_saved := false
+var _capture_action := ""
+var _bindings := {}
 var total_score := 0
-var _settings := {"volume": 0.8, "sensitivity": 1.0, "accessible_palette": false}
+var _settings := {"volume": 0.8, "sensitivity": 1.0, "accessible_palette": false,
+	"reduced_motion": false, "large_text": false}
 var _return_page := "menu"
 var _art: IslandArt
 var _hud: NightHUD
@@ -33,6 +44,9 @@ var _body: Node3D
 var _pulse_ring: MeshInstance3D
 var _lantern_nodes := {}
 var _entity_nodes := {}
+var _motes_batch: ActorBatch
+var _shades_batch: ActorBatch
+var _stunned_batch: ActorBatch
 var _yaw := 0.0
 var _camera_height := 5.15
 var _toast := ""
@@ -45,7 +59,22 @@ var _ambient_lit := -1
 
 
 func _ready() -> void:
-	_setup_actions()
+	_board = Leaderboard.new(leaderboard_path)
+	var arguments := OS.get_cmdline_user_args()
+	if not arguments.is_empty() and arguments[0] == "--export-leaderboard":
+		if arguments.size() != 2:
+			printerr("Usage: --export-leaderboard out.json")
+			get_tree().quit(2)
+		else:
+			var result := _board.export_to(arguments[1])
+			if result != OK:
+				printerr(error_string(result))
+			get_tree().quit(0 if result == OK else 1)
+		set_process(false)
+		set_physics_process(false)
+		set_process_input(false)
+		set_process_unhandled_input(false)
+		return
 	_camera = Camera3D.new()
 	_camera.fov = 62.0
 	_camera.far = 240.0
@@ -62,6 +91,7 @@ func _ready() -> void:
 	_art = IslandArt.new()
 	add_child(_art)
 	_load_settings()
+	_setup_actions()
 	_prepare_night(1)
 	_show_menu()
 
@@ -87,12 +117,31 @@ func handle_action(action: String) -> void:
 			_show_menu()
 		"settings":
 			_return_page = _hud.mode
-			_hud.show_panel("settings", "ĐẢO ĐÈN LỒNG", "Cài đặt", "", [["Quay lại", "back"]], _settings)
+			_show_settings()
+		"leaderboard":
+			_show_leaderboard()
+		"save_score":
+			_save_score()
+		"bindings":
+			_show_bindings()
+		"reset_bindings":
+			_bindings.clear()
+			_capture_action = ""
+			_setup_actions()
+			_save_settings()
+			_show_bindings("Đã khôi phục phím mặc định.")
+		"settings_back":
+			_capture_action = ""
+			_show_settings()
 		"back":
 			if _return_page == "pause":
 				_show_pause()
 			else:
 				_show_menu()
+		_:
+			if action.begins_with("bind/"):
+				_capture_action = action.trim_prefix("bind/")
+				_show_bindings("Nhấn phím mới cho %s. Esc để hủy." % ACTION_NAMES[_capture_action])
 
 
 func _prepare_night(number: int, scenario: Dictionary = {}) -> void:
@@ -104,6 +153,8 @@ func _prepare_night(number: int, scenario: Dictionary = {}) -> void:
 	_toast_until = 0
 	_pulse_at = -100
 	_last_second = -1
+	_score_saved = false
+	_hud.clear_spawn()
 	_ambient_lit = -1
 	_art.set_night(number)
 	if _actors != null:
@@ -113,6 +164,11 @@ func _prepare_night(number: int, scenario: Dictionary = {}) -> void:
 	_entity_nodes.clear()
 	_actors = Node3D.new()
 	add_child(_actors)
+	_motes_batch = _batch(_art.make_mote(), false)
+	_shades_batch = _batch(_art.make_shade(), false)
+	var stunned := _art.make_shade()
+	_art.update_shade(stunned, true)
+	_stunned_batch = _batch(stunned, false)
 	_player = _art.make_player()
 	_actors.add_child(_player)
 	_body = _player.get_node("Body")
@@ -134,7 +190,7 @@ func _show_menu() -> void:
 	_audio.pause_music(true)
 	_hud.show_panel("menu", "BA HÒN ĐẢO", "Đảo Đèn Lồng",
 		"Theo chân Mây qua ba đêm và giữ những ngọn đèn sáng tới bình minh.",
-		[["Bắt đầu", "new"], ["Cài đặt", "settings"]])
+		[["Bắt đầu", "new"], ["Bảng xếp hạng", "leaderboard"], ["Cài đặt", "settings"]])
 
 
 func _show_intro() -> void:
@@ -169,7 +225,7 @@ func _show_result(reason: String) -> void:
 			_camera.look_at(Vector3(0, 3, 3), Vector3.UP)
 			_hud.show_panel("dawn", "BA HÒN ĐẢO ĐÃ SÁNG", "Bình Minh",
 				"Mây đã mang ánh sáng về cả ba hòn đảo.\nTổng điểm   %d" % total_score,
-				[["Về menu", "menu"], ["Chơi lại từ đầu", "new"]])
+				[["Về menu", "menu"], ["Chơi lại từ đầu", "new"]], {"score_entry": true})
 		else:
 			_hud.show_panel("result", Map.NAMES[night.number - 1].to_upper(), "Đảo đã sáng",
 				"%d/%d đèn sáng  ·  %d điểm đêm này\nTổng điểm   %d" % [night.lit_count(), night.lanterns.size(), night.score, total_score],
@@ -180,7 +236,66 @@ func _show_result(reason: String) -> void:
 			detail = "Mây đã mất ngọn lửa cuối cùng."
 		_hud.show_panel("result", Map.NAMES[night.number - 1].to_upper(), "Đêm khép lại",
 			"%s\nTổng điểm các đêm đã thắng   %d" % [detail, total_score],
-			[["Chơi lại Đêm  ·  R", "retry"], ["Về menu", "menu"]])
+			[["Chơi lại Đêm  ·  R", "retry"], ["Về menu", "menu"]], {"score_entry": true})
+
+
+func _show_leaderboard() -> void:
+	var rows := _board.entries()
+	var lines := PackedStringArray()
+	for index in range(rows.size()):
+		var entry: Dictionary = rows[index]
+		lines.append("%d.  %s     %d điểm     %d/3 đêm" % [index + 1, entry.name, entry.score, entry.nights_won])
+	var message := "\n".join(lines) if not lines.is_empty() else "Chưa có điểm được lưu."
+	_hud.show_panel("leaderboard", "ĐẢO ĐÈN LỒNG", "Bảng xếp hạng", message, [["Về menu", "menu"]])
+
+
+func _save_score() -> void:
+	if _score_saved or not night.finished():
+		return
+	var won := 3 if _hud.mode == "dawn" else night.number - 1
+	var status := _board.record(_hud.score_name.text, total_score, won, seed_value)
+	if status != OK:
+		_hud.form_notice.text = "Tên cần 3–12 ký tự A–Z, 0–9 hoặc _." if status == ERR_INVALID_DATA else "Không ghi được bảng xếp hạng."
+		return
+	_score_saved = true
+	_hud.score_name.editable = false
+	_hud.form_notice.text = "Đã lưu %d điểm." % total_score
+
+
+func _show_settings() -> void:
+	_hud.show_panel("settings", "ĐẢO ĐÈN LỒNG", "Cài đặt", "",
+		[["Đổi phím", "bindings"], ["Quay lại", "back"]], _settings)
+
+
+func _show_bindings(message: String = "") -> void:
+	var rows := []
+	for action: String in ACTION_NAMES:
+		var keys := PackedStringArray()
+		for key: int in _bindings.get(action, KEYS[action]):
+			keys.append(_key_name(key))
+		rows.append([ACTION_NAMES[action] + "   " + " / ".join(keys), "bind/" + action])
+	_hud.show_panel("bindings", "ĐIỀU KHIỂN", "Đổi phím", message,
+		[["Khôi phục mặc định", "reset_bindings"], ["Quay lại", "settings_back"]], {"bindings": rows})
+
+
+func _input(event: InputEvent) -> void:
+	if _capture_action.is_empty() or not event is InputEventKey or not event.pressed or event.echo:
+		return
+	get_viewport().set_input_as_handled()
+	var action := _capture_action
+	var key := int(event.physical_keycode)
+	if key == 0:
+		return
+	if key != KEY_ESCAPE:
+		for other: String in KEYS:
+			if other != action and key in _bindings.get(other, KEYS[other]):
+				_show_bindings("Phím đã dùng cho %s. Chọn phím khác." % ACTION_NAMES.get(other, "Chơi lại"))
+				return
+		_bindings[action] = [key]
+		_setup_actions()
+		_save_settings()
+	_capture_action = ""
+	_show_bindings("Đã lưu phím." if key != KEY_ESCAPE else "Đã hủy đổi phím.")
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -191,7 +306,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	if _hud.mode == "result" and night.state == "lost" and Input.is_action_just_pressed("restart"):
+	if _hud.mode == "result" and night.state == "lost" and Input.is_action_just_pressed("restart") \
+			and not (_hud.score_name != null and is_instance_valid(_hud.score_name) and _hud.score_name.has_focus()):
 		handle_action("retry")
 		return
 	if _hud.mode == "settings" and Input.is_action_just_pressed("pause"):
@@ -226,6 +342,9 @@ func _on_game_event(event: Dictionary) -> void:
 			_show_toast("Đã châm dầu cho đèn %s" % event.data.lantern_id)
 		"lantern_out":
 			_show_toast("Đèn %s đã cạn dầu" % event.data.lantern_id, true)
+		"shade_spawned":
+			_show_toast("Bóng Mực xuất hiện", true)
+			_hud.note_spawn(event.data.id, night.sim_tick)
 		"pulse":
 			_pulse_ring.position = night.player_pos + Vector3.UP * 0.065
 			_pulse_at = night.sim_tick
@@ -277,18 +396,27 @@ func _sync_world() -> void:
 	_player.position = night.player_pos
 	_player.rotation.y = lerp_angle(_player.rotation.y, atan2(night.facing.x, night.facing.z), 0.32)
 	var moving := Vector2(night.velocity.x, night.velocity.z).length_squared() > 0.1
-	_body.position.y = sin(seconds * 16.0) * 0.04 if moving and night.grounded else 0.0
+	_body.position.y = sin(seconds * 16.0) * 0.04 if moving and night.grounded and not _settings.reduced_motion else 0.0
 	_body.visible = night.respawn_at == 0 and (not night.player_is_protected() or night.sim_tick % 10 < 7)
-	var active := {}
+	var mote_poses: Array[Transform3D] = []
 	for mote in night.motes:
-		var node := _entity(mote.id, _art.make_mote, active)
 		var phase := float(String(mote.id).substr(1).to_int()) * 0.78
-		node.position = mote.pos + Vector3.UP * (0.48 + sin(seconds * 3.6 + phase) * 0.17)
+		var position: Vector3 = mote.pos + Vector3.UP * (0.48 + sin(seconds * 3.6 + phase) * 0.17)
+		mote_poses.append(Transform3D(Basis.IDENTITY, position))
+	_motes_batch.sync(mote_poses)
+	var shade_poses: Array[Transform3D] = []
+	var stunned_poses: Array[Transform3D] = []
 	for shade in night.shades:
-		var node := _entity(shade.id, _art.make_shade, active)
-		node.position = shade.pos + Vector3.UP * sin(seconds * 4.0) * 0.09
-		_face_player(node)
-		_art.update_shade(node, shade.state == "stunned")
+		var position: Vector3 = shade.pos + Vector3.UP * sin(seconds * 4.0) * 0.09
+		var direction := night.player_pos - position
+		var pose := Transform3D(Basis(Vector3.UP, atan2(direction.x, direction.z)), position)
+		if shade.state == "stunned":
+			stunned_poses.append(pose)
+		else:
+			shade_poses.append(pose)
+	_shades_batch.sync(shade_poses)
+	_stunned_batch.sync(stunned_poses)
+	var active := {}
 	for drifter in night.drifters:
 		var node := _entity(drifter.id, _art.make_drifter, active)
 		node.position = drifter.pos + Vector3.UP * sin(seconds * 7.2) * 0.15
@@ -321,6 +449,13 @@ func _entity(id: String, factory: Callable, active: Dictionary) -> Node3D:
 	return _entity_nodes[id]
 
 
+func _batch(template: Node3D, casts_shadow: bool) -> ActorBatch:
+	var batch := ActorBatch.new()
+	batch.configure(template, casts_shadow)
+	_actors.add_child(batch)
+	return batch
+
+
 func _face_player(node: Node3D) -> void:
 	var direction := night.player_pos - node.position
 	if Vector2(direction.x, direction.z).length_squared() > 0.001:
@@ -346,13 +481,26 @@ func _update_camera(weight: float) -> void:
 
 func _setup_actions() -> void:
 	for action: String in KEYS:
-		if InputMap.has_action(action):
-			continue
-		InputMap.add_action(action)
-		for key: int in KEYS[action]:
+		if not InputMap.has_action(action):
+			InputMap.add_action(action)
+		InputMap.action_erase_events(action)
+		for key: int in _bindings.get(action, KEYS[action]):
 			var binding := InputEventKey.new()
 			binding.physical_keycode = key
 			InputMap.action_add_event(action, binding)
+	_hud.interact_key = _primary_key("interact")
+	_hud.help_text.text = "%s%s%s%s  ·  %s  ·  %s  ·  %s  ·  %s  ·  %s" % [
+		_primary_key("walk_forward"), _primary_key("walk_left"), _primary_key("walk_back"), _primary_key("walk_right"),
+		_primary_key("jump"), _primary_key("dash"), _hud.interact_key, _primary_key("pulse"), _primary_key("pause")]
+
+
+func _primary_key(action: String) -> String:
+	var key := int(_bindings.get(action, KEYS[action])[0])
+	return _key_name(key)
+
+
+func _key_name(key: int) -> String:
+	return OS.get_keycode_string(key if DisplayServer.get_name() == "headless" else DisplayServer.keyboard_get_keycode_from_physical(key))
 
 
 func _load_settings() -> void:
@@ -361,6 +509,14 @@ func _load_settings() -> void:
 		_settings.volume = clampf(float(config.get_value("settings", "volume", _settings.volume)), 0.0, 1.0)
 		_settings.sensitivity = clampf(float(config.get_value("settings", "sensitivity", _settings.sensitivity)), 0.3, 2.0)
 		_settings.accessible_palette = bool(config.get_value("settings", "accessible_palette", _settings.accessible_palette))
+		_settings.reduced_motion = bool(config.get_value("settings", "reduced_motion", false))
+		_settings.large_text = bool(config.get_value("settings", "large_text", false))
+		var saved: Variant = config.get_value("settings", "bindings", {})
+		if saved is Dictionary:
+			for action: String in ACTION_NAMES:
+				var keys: Variant = saved.get(action)
+				if keys is Array and keys.size() == 1 and keys[0] is int and keys[0] > 0:
+					_bindings[action] = keys
 	_audio.set_volume(_settings.volume)
 	_apply_palette()
 
@@ -369,13 +525,20 @@ func _update_setting(key: String, value: Variant) -> void:
 	_settings[key] = value
 	_audio.set_volume(_settings.volume)
 	_apply_palette()
+	_save_settings()
+
+
+func _save_settings() -> void:
 	var config := ConfigFile.new()
 	for name: String in _settings:
 		config.set_value("settings", name, _settings[name])
+	config.set_value("settings", "bindings", _bindings)
 	if config.save(settings_path) != OK:
 		push_warning("Không lưu được cài đặt.")
 
 
 func _apply_palette() -> void:
 	_hud.accessible_palette = _settings.accessible_palette
+	_hud.reduced_motion = _settings.reduced_motion
+	_hud.set_large_text(_settings.large_text)
 	_art.set_accessible_palette(_settings.accessible_palette)

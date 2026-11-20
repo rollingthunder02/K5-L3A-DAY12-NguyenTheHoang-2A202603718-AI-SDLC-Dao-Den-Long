@@ -3,6 +3,7 @@ extends SceneTree
 const SCENE := preload("res://src/main.tscn")
 const Map := preload("res://src/island_map.gd")
 const NightAudio := preload("res://src/night_audio.gd")
+const Leaderboard := preload("res://src/leaderboard.gd")
 
 var _game
 var _capture_dir := ""
@@ -22,6 +23,7 @@ func _verify() -> void:
 	_settings_path = local.path_join("campaign-settings-%d.cfg" % OS.get_process_id())
 	_game = SCENE.instantiate()
 	_game.settings_path = _settings_path
+	_game.leaderboard_path = _settings_path + "-scores.json"
 	_game.seed_value = 42
 	root.add_child(_game)
 	var music: AudioStreamWAV = _game._audio._make_music()
@@ -30,31 +32,55 @@ func _verify() -> void:
 		return
 	await _capture("01-menu.jpg")
 	_click("Cài đặt")
+	await _capture("02-cai-dat.jpg")
 	var sliders: Array[Node] = _game._hud.find_children("*", "HSlider", true, false)
 	if not _expect(sliders.size() == 2, "settings opens with two sliders"):
 		return
 	sliders[0].value = 0.42
 	sliders[1].value = 1.35
 	var toggles: Array[Node] = _game._hud.find_children("*", "CheckButton", true, false)
-	if not _expect(toggles.size() == 1 and not toggles[0].button_pressed, "accessible palette starts disabled"):
+	if not _expect(toggles.size() == 3 and not toggles[0].button_pressed, "accessible palette starts disabled"):
 		return
 	toggles[0].button_pressed = true
+	toggles[1].button_pressed = true
+	toggles[2].button_pressed = true
+	if not _expect(_game._hud.large_text and _game._hud._inventory_count.get_theme_font_size("font_size") == 23
+			and _game._hud.reduced_motion, "accessibility settings enlarge 18 px text and reduce motion"):
+		return
+	await _capture("13-chu-lon.jpg")
+	_click("Đổi phím")
+	_game.handle_action("bind/interact")
+	await _tap(KEY_Q)
+	if not _expect(_game._capture_action == "interact" and not _game._bindings.has("interact"), "duplicate remap is rejected"):
+		return
+	await _tap(KEY_F)
+	if not _expect(_game._bindings.interact == [KEY_F] and _game._hud.interact_key == "F", "interact remap updates InputMap and HUD"):
+		return
+	_click("Quay lại")
 	var config := ConfigFile.new()
 	if not _expect(config.load(_settings_path) == OK and is_equal_approx(config.get_value("settings", "volume"), 0.42)
 			and is_equal_approx(config.get_value("settings", "sensitivity"), 1.35)
 			and config.get_value("settings", "accessible_palette"), "saved volume, sensitivity and accessible palette"):
 		return
-	await _capture("02-cai-dat.jpg")
 	_game.queue_free()
 	await process_frame
 	_game = SCENE.instantiate()
 	_game.settings_path = _settings_path
+	_game.leaderboard_path = _settings_path + "-scores.json"
 	_game.seed_value = 42
 	root.add_child(_game)
 	if not _expect(is_equal_approx(_game._settings.volume, 0.42) and is_equal_approx(_game._settings.sensitivity, 1.35)
-			and _game._settings.accessible_palette and _game._art._mat.eye.albedo_color == Color("00b3ff"),
+			and _game._settings.accessible_palette and _game._art._mat.eye.albedo_color == Color("00b3ff")
+			and _game._bindings.interact == [KEY_F] and _game._settings.large_text,
 			"settings restored in new scene"):
 		return
+	_click("Cài đặt")
+	_click("Đổi phím")
+	_click("Khôi phục mặc định")
+	if not _expect(_game._bindings.is_empty() and _game._hud.interact_key == "E", "default binds are restored"):
+		return
+	_click("Quay lại")
+	_click("Quay lại")
 	_click("Bắt đầu")
 	if not _expect(_game._hud.mode == "intro" and _game.night.number == 1, "Night 1 intro opened from menu"):
 		return
@@ -138,6 +164,23 @@ func _verify() -> void:
 	if not _expect(_game._hud.mode == "dawn" and _game.total_score == 3582, "Bình Minh shows the total of the three wins"):
 		return
 	await _capture("08-binh-minh.jpg")
+	_game._hud.score_name.text = "May_01"
+	_click("Lưu điểm")
+	var board := Leaderboard.new(_game.leaderboard_path)
+	var rows := board.entries()
+	if not _expect(rows.size() == 1 and int(rows[0].score) == 3582 and int(rows[0].nights_won) == 3
+			and String(rows[0].achieved_at).ends_with("Z"), "Dawn saves and reloads the winning score with a UTC timestamp"):
+		return
+	var invalid := board.record("!", 9999, 3, 42)
+	for index in range(12):
+		board.record("May_%02d" % (index + 2), 172, 1, 42)
+	rows = board.entries()
+	if not _expect(invalid == ERR_INVALID_DATA and rows.size() == 10 and rows[1].name == "May_02"
+			and rows[9].name == "May_10", "leaderboard keeps top ten and preserves earliest equal scores"):
+		return
+	_click("Về menu")
+	_click("Bảng xếp hạng")
+	await _capture("14-bang-xep-hang.jpg")
 	_click("Về menu")
 	_click("Bắt đầu")
 	_click("Bắt đầu đêm")

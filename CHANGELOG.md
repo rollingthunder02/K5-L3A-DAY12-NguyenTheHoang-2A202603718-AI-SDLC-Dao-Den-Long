@@ -1,5 +1,12 @@
 # Changelog
 
+## Phase 4 · v1.0.0 · Contract v1.3
+
+- Thêm benchmark cửa sổ 200 Bóng Mực, soak test trong một tiến trình, số liệu FPS và RSS có thể tái lập.
+- Thêm bảng xếp hạng cục bộ, nhập tên sau khi kết thúc và xuất JSON.
+- Thêm đổi phím, phát hiện trùng, khôi phục mặc định, chữ lớn, giảm chuyển động và chỉ báo các tín hiệu âm thanh.
+- Thêm preset xuất Windows/Linux, giấy phép mã nguồn, bằng chứng, retro và video demo.
+
 ## Phase 3 · Contract v1.2
 
 ### Thay đổi không tương thích
@@ -14,3 +21,13 @@
 
 - Scenario hỗ trợ `player.successful_lights`, `lanterns[].fuel`, `lanterns[].ever_lit` và `shades[].target_lantern_id`.
 - Cài đặt lưu tùy chọn **Bảng màu dễ phân biệt**, thêm thanh dầu trên đèn, vết rách và chiều cao phân biệt đèn đã tắt.
+
+## Phase 2 · Contract v1.1
+
+- Chuẩn hóa thông số, mở rộng Đảo Bến thành chiến dịch ba đêm, thêm hai bản đồ, bục nhảy, lướt, rơi và hồi sinh.
+- Thêm Gió Lạc, Bùa Gió, gió mạnh, cài đặt, menu tạm dừng, HUD, nhạc và hiệu ứng.
+
+## Phase 1 · Contract v1.0
+
+- Bản chơi đầu tiên của Đảo Bến với năm đèn, đom đóm, Bóng Mực, tỏa sáng và chơi lại.
+- Thêm chế độ headless, điều khiển bằng scenario/inputs, kiểm thử và bằng chứng Phase 1.

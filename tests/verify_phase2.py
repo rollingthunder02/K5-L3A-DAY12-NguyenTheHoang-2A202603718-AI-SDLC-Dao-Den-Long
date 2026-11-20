@@ -13,7 +13,7 @@ def horizontal(a, b=(0, 0, 0)):
 
 class Ticket02Tests(HeadlessCase):
     def test_nights_maps_and_initial_stock(self):
-        self.assertEqual(CONTRACT["contract_version"], "1.2")
+        self.assertEqual(CONTRACT["contract_version"], "1.3")
         maps = [
             [[0, 0, 25], [23.8, 0, 7.7], [14.7, 0, -20.2], [-14.7, 0, -20.2], [-23.8, 0, 7.7]],
             [[0, 0, 20], [17, 0, -10], [-17, 0, -10], [70, 0, 20], [87, 0, -10], [53, 0, -10]],

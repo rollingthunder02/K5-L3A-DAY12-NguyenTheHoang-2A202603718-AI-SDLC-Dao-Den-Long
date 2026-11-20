@@ -28,6 +28,16 @@ signal setting_changed(key: String, value: Variant)
 
 var mode := ""
 var accessible_palette := false
+var reduced_motion := false
+var large_text := false
+var interact_key := "E"
+var score_name: LineEdit
+var form_notice: Label
+var help_text: Label
+var _spawn_id := ""
+var _spawn_until := 0
+var _spawn_marker: Label
+var _timer_caption: Label
 var _hud: Control
 var _veil: ColorRect
 var _panel_content: CenterContainer
@@ -60,6 +70,7 @@ func _ready() -> void:
 	add_child(_hud)
 	_hud.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	_make_hud()
+	_restyle(self)
 	_veil = ColorRect.new()
 	_veil.color = Color(0.034, 0.043, 0.093, 0.70)
 	add_child(_veil)
@@ -74,12 +85,18 @@ func update_night(night: Night, yaw: float, toast: String, warn_toast: bool = fa
 	_flames.text = "✦ ".repeat(night.flames) + "◇ ".repeat(maxi(0, int(night.tuning.flames) - night.flames))
 	_score.text = "%04d ĐIỂM" % night.score
 	var seconds := ceili(night.time_left())
+	_timer_caption.text = "10 GIÂY CUỐI" if seconds <= 10 and seconds > 0 else "BÌNH MINH"
 	_clock.text = "%02d:%02d" % [seconds / 60, seconds % 60]
-	_clock.modulate.a = 0.51 if seconds <= 30 and night.sim_tick % 60 >= 30 else 1.0
+	_clock.modulate.a = 0.51 if not reduced_motion and seconds <= 30 and night.sim_tick % 60 >= 30 else 1.0
 	_clock_icon.visible = accessible_palette and seconds <= 30
 	_clock_icon.modulate.a = _clock.modulate.a
 	_clock.add_theme_color_override("font_color", _danger_color() if seconds <= 30 else PAPER)
-	_lamps.text = "ĐÈN SÁNG  %d/%d\nCẦN %d ĐẾN BÌNH MINH" % [night.lit_count(), night.lanterns.size(), night.required_lamps()]
+	var low := 0
+	for lamp in night.lanterns:
+		low += int(night.lamp_is_weak(lamp))
+	_lamps.text = "SÁNG  %d/%d · CẦN %d" % [night.lit_count(), night.lanterns.size(), night.required_lamps()]
+	if low > 0:
+		_lamps.text += "\nDầu thấp  %d" % low
 	var capacity := night.capacity()
 	_inventory_count.text = "ĐOM ĐÓM   %d / %d" % [night.carried, capacity]
 	for index in range(_cells.size()):
@@ -103,10 +120,10 @@ func update_night(night: Night, yaw: float, toast: String, warn_toast: bool = fa
 		_prompt_icon.visible = accessible_palette and weak
 		_prompt.add_theme_color_override("font_color", _danger_color() if weak else GOLD)
 		if lantern.lit:
-			_prompt.text = "E — Châm dầu (%d%%)" % floori(night.lamp_fuel(lantern))
+			_prompt.text = "%s — Châm dầu (%d%%)" % [interact_key, floori(night.lamp_fuel(lantern))]
 		else:
 			var action := "Thắp lại" if lantern.ever_lit else "Nạp ánh sáng"
-			_prompt.text = "E — %s (%d/%d)" % [action, lantern.deposited, night.light_cost(lantern)]
+			_prompt.text = "%s — %s (%d/%d)" % [interact_key, action, lantern.deposited, night.light_cost(lantern)]
 
 
 func _danger_color() -> Color:
@@ -116,24 +133,46 @@ func _danger_color() -> Color:
 func update_marker(camera: Camera3D, night: Night) -> void:
 	var target := night.nearest_lantern(false, false)
 	_marker.hide()
+	_spawn_marker.hide()
+	if mode == "play" and night.sim_tick < _spawn_until:
+		for shade in night.shades:
+			if shade.id == _spawn_id:
+				_point_marker(camera, shade.pos, _spawn_marker, true)
+				break
 	if mode != "play" or target.is_empty():
 		return
-	var point: Vector3 = target.pos + Vector3.UP * 2.1
+	_point_marker(camera, target.pos + Vector3.UP * 2.1, _marker)
+
+
+func note_spawn(id: String, tick: int) -> void:
+	_spawn_id = id
+	_spawn_until = tick + 180
+
+
+func clear_spawn() -> void:
+	_spawn_until = 0
+	_spawn_marker.hide()
+
+
+func _point_marker(camera: Camera3D, point: Vector3, marker: Label, always_at_edge: bool = false) -> void:
 	var projected := camera.unproject_position(point)
 	var rect := Rect2(Vector2(68, 110), size - Vector2(136, 220))
 	var behind := camera.is_position_behind(point)
-	if not behind and get_viewport_rect().has_point(projected):
+	if not always_at_edge and not behind and get_viewport_rect().has_point(projected):
 		return
 	var center := size * 0.5
 	var heading := projected - center
 	if behind:
 		var side := camera.to_local(point).x
 		heading = Vector2(side, maxf(absf(side) * 0.4, 1.0))
-	_marker.position = Vector2(clampf(center.x + heading.normalized().x * size.x, rect.position.x, rect.end.x),
-		clampf(center.y + heading.normalized().y * size.y, rect.position.y, rect.end.y)) - _marker.size * 0.5
-	_marker.pivot_offset = _marker.size * 0.5
-	_marker.rotation = heading.angle()
-	_marker.show()
+	if heading.length_squared() < 0.01:
+		heading = Vector2.UP
+	var ray := heading.normalized()
+	var edge := minf((rect.size.x * 0.5) / maxf(absf(ray.x), 0.0001), (rect.size.y * 0.5) / maxf(absf(ray.y), 0.0001))
+	marker.position = center + ray * edge - marker.size * 0.5
+	marker.pivot_offset = marker.size * 0.5
+	marker.rotation = heading.angle()
+	marker.show()
 
 
 func show_play() -> void:
@@ -146,6 +185,7 @@ func show_panel(page: String, eyebrow: String, title: String, message: String, a
 		options: Dictionary = {}) -> void:
 	mode = page
 	_marker.hide()
+	_spawn_marker.hide()
 	_hud.visible = page in ["pause", "result"]
 	for child in _panel_content.get_children():
 		_panel_content.remove_child(child)
@@ -169,11 +209,34 @@ func show_panel(page: String, eyebrow: String, title: String, message: String, a
 	if page == "settings":
 		_add_slider(stack, "Âm lượng", "volume", options.volume, 0.0, 1.0)
 		_add_slider(stack, "Độ nhạy chuột", "sensitivity", options.sensitivity, 0.3, 2.0)
-		var toggle := CheckButton.new()
-		toggle.text = "Bảng màu dễ phân biệt"
-		toggle.button_pressed = options.get("accessible_palette", false)
-		toggle.toggled.connect(func(enabled: bool) -> void: setting_changed.emit("accessible_palette", enabled))
-		stack.add_child(toggle)
+		_add_toggle(stack, "Bảng màu dễ phân biệt", "accessible_palette", options)
+		_add_toggle(stack, "Giảm chuyển động", "reduced_motion", options)
+		_add_toggle(stack, "Chữ lớn ×1,25", "large_text", options)
+	if options.has("bindings"):
+		var grid := GridContainer.new()
+		grid.columns = 2
+		for row: Array in options.bindings:
+			var binding := Button.new()
+			binding.text = row[0]
+			binding.custom_minimum_size = Vector2(250, 38)
+			binding.pressed.connect(_dispatch.bind(row[1]))
+			grid.add_child(binding)
+		stack.add_child(grid)
+	if options.get("score_entry", false):
+		var form := HBoxContainer.new()
+		form.alignment = BoxContainer.ALIGNMENT_CENTER
+		score_name = LineEdit.new()
+		score_name.placeholder_text = "Tên người chơi"
+		score_name.custom_minimum_size.x = 230
+		score_name.text_submitted.connect(func(_value: String) -> void: _dispatch("save_score"))
+		form.add_child(score_name)
+		var save := Button.new()
+		save.text = "Lưu điểm"
+		save.pressed.connect(_dispatch.bind("save_score"))
+		form.add_child(save)
+		stack.add_child(form)
+		form_notice = _centered_label("Tên dài 3–12 ký tự.", 18, MUTED)
+		stack.add_child(form_notice)
 	var first_button: Button
 	for entry: Array in actions:
 		var button := Button.new()
@@ -190,12 +253,34 @@ func show_panel(page: String, eyebrow: String, title: String, message: String, a
 		if first_button == null:
 			first_button = button
 	_veil.show()
+	_restyle(card)
 	if first_button != null:
 		first_button.grab_focus()
 
 
 func _dispatch(action: String) -> void:
 	action_requested.emit(action)
+
+
+func _add_toggle(parent: VBoxContainer, title: String, key: String, options: Dictionary) -> void:
+	var toggle := CheckButton.new()
+	toggle.text = title
+	toggle.button_pressed = options.get(key, false)
+	toggle.toggled.connect(func(enabled: bool) -> void: setting_changed.emit(key, enabled))
+	parent.add_child(toggle)
+
+
+func set_large_text(enabled: bool) -> void:
+	large_text = enabled
+	_restyle(self)
+
+
+func _restyle(node: Node) -> void:
+	if node is Label or node is Button or node is LineEdit:
+		var base := int(node.get_meta("base_font_size", 18))
+		node.add_theme_font_size_override("font_size", ceili(maxi(18, base) * (1.25 if large_text else 1.0)))
+	for child in node.get_children():
+		_restyle(child)
 
 
 func _add_slider(parent: VBoxContainer, title: String, key: String, value: float, low: float, high: float) -> void:
@@ -229,13 +314,14 @@ func _make_hud() -> void:
 	_flames = _label("", 24, GOLD)
 	left.add_child(_flames)
 
-	var timer := _stack_card(Vector2(0.5, 0), Rect2(-71, 22, 142, 71))
-	timer.add_child(_centered_label("TỚI BÌNH MINH", 11, MUTED))
+	var timer := _stack_card(Vector2(0.5, 0), Rect2(-94, 22, 188, 78))
+	_timer_caption = _centered_label("BÌNH MINH", 18, MUTED)
+	timer.add_child(_timer_caption)
 	_clock = _centered_label("", 26, PAPER)
 	_clock_icon = WarningMark.new()
 	timer.add_child(_warning_row(_clock, _clock_icon))
 
-	var right := _stack_card(Vector2(1, 0), Rect2(-216, 22, 190, 100))
+	var right := _stack_card(Vector2(1, 0), Rect2(-246, 22, 220, 113))
 	_lamps = _label("", 13, PAPER)
 	right.add_child(_lamps)
 	_score = _label("", 24, GOLD)
@@ -249,7 +335,7 @@ func _make_hud() -> void:
 	_minimap.mouse_filter = MOUSE_FILTER_IGNORE
 	map_stack.add_child(_minimap)
 
-	var abilities := _stack_card(Vector2.ONE, Rect2(-220, -110, 194, 87))
+	var abilities := _stack_card(Vector2.ONE, Rect2(-290, -127, 264, 104))
 	_dash = _label("", 14, PAPER)
 	_pulse = _label("", 14, PAPER)
 	_charm = _label("", 12, GOLD)
@@ -270,7 +356,8 @@ func _make_hud() -> void:
 		cell.mouse_filter = MOUSE_FILTER_IGNORE
 		row.add_child(cell)
 		_cells.append(cell)
-	inventory.add_child(_centered_label("WASD  Đi    Space  Nhảy    Shift  Lướt    E  Nạp    Q  Tỏa sáng    P  Dừng", 13, PAPER))
+	help_text = _centered_label("", 18, PAPER)
+	inventory.add_child(help_text)
 
 	_prompt = _centered_label("", 20, GOLD)
 	_prompt_icon = WarningMark.new()
@@ -285,6 +372,11 @@ func _make_hud() -> void:
 	_marker.custom_minimum_size = Vector2(38, 38)
 	_hud.add_child(_marker)
 	_marker.hide()
+	_spawn_marker = _centered_label("➤", 29, DANGER)
+	_shaded(_spawn_marker)
+	_spawn_marker.custom_minimum_size = Vector2(38, 38)
+	_hud.add_child(_spawn_marker)
+	_spawn_marker.hide()
 
 
 func _warning_row(label: Label, mark: WarningMark) -> HBoxContainer:
@@ -348,7 +440,7 @@ func _centered_label(value: String, font_size: int, font_color: Color) -> Label:
 func _label(value: String, font_size: int, font_color: Color) -> Label:
 	var label := Label.new()
 	label.text = value
-	label.add_theme_font_size_override("font_size", font_size)
+	label.set_meta("base_font_size", font_size)
 	label.add_theme_color_override("font_color", font_color)
 	return label
 

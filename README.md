@@ -1,11 +1,15 @@
 # Day 12 — AI SDLC: Đảo Đèn Lồng
 
+[Video demo MP4](https://github.com/rollingthunder02/K5-L3A-DAY12-NguyenTheHoang-2A202603718-AI-SDLC-Dao-Den-Long/releases/download/v1.0.0/demo.mp4) · [GitHub Release v1.0.0](https://github.com/rollingthunder02/K5-L3A-DAY12-NguyenTheHoang-2A202603718-AI-SDLC-Dao-Den-Long/releases/tag/v1.0.0)
+
 > **Cá nhân** (1 người / 1 MSSV) · Áp dụng SDLC cùng AI để xây một **game 3D** qua **4 phase**, từ yêu cầu ban đầu tới bản phát hành.
 > **Lab board + trợ giảng:** **[Đảo Đèn Lồng Lab](https://claude.ai/artifact/Q1RYyv1dxjUczzCbd2ZnoW)**
 
 ---
 
 ## Chơi Ba hòn đảo
+
+![Mây canh đèn trên Đảo Bến](docs/proof/phase-4/11-den-dau.jpg)
 
 Gom đom đóm để giữ đủ đèn sáng tới bình minh. Mây cần giữ **3/5 đèn ở Đảo Bến**, **4/6 ở Đảo Cau** và **5/7 ở Đảo Chuông**. Đèn hao dầu dù đang sáng. Khi xuống dưới 30 dầu, đèn mất vùng an toàn và có thể bị Bóng Mực hút dầu. Đèn tắt đã từng được thắp chỉ cần 5 đom đóm để thắp lại.
 
@@ -17,6 +21,8 @@ bash tools/game.sh play
 ```
 
 **Windows.** Mở `project.godot` trong Godot Project Manager rồi nhấn **F5**. Từ PowerShell trên máy làm bài, có thể chạy `& 'D:\Godot_v4.4.1-stable_win64_console.exe' --path .`.
+
+**Yêu cầu hệ thống.** Godot 4.4.x hoặc tương thích, GPU hỗ trợ OpenGL 3.3 và màn hình cho bản đồ họa. Python 3.8+ dùng cho verify, benchmark và soak. Gói Release có bản Windows x64 và Linux x86_64 chạy trực tiếp sau khi giải nén.
 
 | Phím | Hành động |
 |---|---|
@@ -33,6 +39,8 @@ bash tools/game.sh play
 
 **Cài đặt.** Âm lượng, độ nhạy chuột và tùy chọn **Bảng màu dễ phân biệt** được lưu trong `user://settings.cfg` của Godot. Tùy chọn này đổi mắt và viền Bóng Mực sang xanh lam, đồng thời hiển thị cảnh báo trắng kèm biểu tượng ⚠. Đèn đã tắt thấp hơn 20% và có vết rách. Mỗi lần thắp thành công tăng sức chứa thêm 2 đom đóm, tối đa 20 trong mỗi đêm.
 
+Menu Cài đặt có mục **Đổi phím**, chế độ **Giảm chuyển động** và **Chữ lớn ×1,25**. Sau Bình Minh hoặc khi thua, nhập tên 3–12 ký tự ASCII để lưu điểm, rồi mở **Bảng xếp hạng** từ menu chính.
+
 ### Chế độ headless và kiểm thử
 
 Chạy từ thư mục gốc. Lệnh `verify` cần thêm Python 3.8 trở lên.
@@ -44,7 +52,15 @@ bash tools/game.sh verify
 
 Trên Windows PowerShell, thay `bash tools/game.sh headless` bằng `& 'D:\Godot_v4.4.1-stable_win64_console.exe' --headless --path . --script res://src/headless.gd --`. Để chạy bộ kiểm chứng contract, đặt `$env:GODOT_BIN = 'D:\Godot_v4.4.1-stable_win64_console.exe'` rồi chạy `python -m unittest discover -s tests -p 'verify_phase*.py' -v`.
 
-Test Contract v1.2 nhận `--night 1`, `2` hoặc `3` và dùng bước mô phỏng 60 tick/giây. Khi tạm dừng, `tick` vẫn tăng và `sim_tick` cùng mức dầu đứng yên. [Manifest](game.contract.json) · [ADR và kiểm chứng Phase 3](docs/phase-3.md) · [Changelog](CHANGELOG.md) · [Bằng chứng Phase 3](docs/proof/phase-3/README.md)
+Test Contract v1.3 nhận `--night 1`, `2` hoặc `3` và dùng bước mô phỏng 60 tick/giây. Khi tạm dừng, `tick` vẫn tăng và `sim_tick` cùng mức dầu đứng yên. [Manifest](game.contract.json) · [Changelog](CHANGELOG.md) · [Bằng chứng Phase 4](docs/proof/phase-4/README.md)
+
+```bash
+bash tools/game.sh bench --seed 42 --duration 30 --out bench.json
+bash tools/game.sh soak --seed 7 --nights 10 --out soak.json
+bash tools/game.sh play --export-leaderboard leaderboard.json
+```
+
+Benchmark mở cửa sổ 1280×720 và yêu cầu tắt VSync. Kiểm tra trường `vsync_off` trong kết quả. Soak chạy không giao diện trong một tiến trình Godot. Trên Windows PowerShell có thể thay `bash tools/game.sh bench` và `soak` bằng `python tools/measure.py "D:\Godot_v4.4.1-stable_win64.exe" bench` hoặc `soak` rồi thêm các tham số tương ứng.
 
 ### Sáng tạo của tôi
 

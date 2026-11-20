@@ -1,9 +1,11 @@
 {
-  "contract_version": "1.2",
+  "contract_version": "1.3",
   "team": "2A202603718-NguyenTheHoang",
   "build_cmd": "bash tools/game.sh build",
   "run_cmd": "bash tools/game.sh play",
   "headless_cmd": "bash tools/game.sh headless",
+  "bench_cmd": "bash tools/game.sh bench",
+  "soak_cmd": "bash tools/game.sh soak",
   "tuning": {
     "player_speed": 6.0,
     "jump_speed": 7.0,

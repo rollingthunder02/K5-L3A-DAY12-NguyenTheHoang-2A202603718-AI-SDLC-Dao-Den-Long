@@ -175,6 +175,13 @@ func finished() -> bool:
 	return state == "won" or state == "lost"
 
 
+func benchmark_step() -> void:
+	tick += 1
+	sim_tick += 1
+	_update_safe_zones()
+	_move_shades(false)
+
+
 func resume_from_menu() -> void:
 	if state == "paused":
 		state = "playing"
